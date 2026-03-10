@@ -1,0 +1,10 @@
+# Data files (reproducible via scrapers)
+etl/warehouse/raw/*.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
