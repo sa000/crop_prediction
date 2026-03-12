@@ -10,7 +10,7 @@ The platform currently supports corn futures with Corn Belt precipitation data, 
 
 Data flows through four stages:
 
-1. **ETL scrapers** pull raw market data (Yahoo Finance) and weather data (Open-Meteo) into the raw warehouse as Parquet files.
+1. **ETL scrapers** pull raw market data (Yahoo Finance) and weather data (Open-Meteo) into a SQLite warehouse, with immutable Parquet files as an audit trail.
 2. **Feature engineering** merges datasets, computes rolling/lagged features, and writes them to a feature store with metadata.
 3. **Strategies** consume features and produce a signal DataFrame (long/short/flat per day).
 4. **Backtest engine** takes signals, simulates trading with configurable costs and position sizing, and outputs P&L metrics.
@@ -27,12 +27,14 @@ crop_prediction/
   docs/
     coding_guidelines.md       -- coding standards for all code changes
   etl/
-    config.yaml                -- shared configuration for all scrapers
+    db.py                      -- SQLite manager (DB_PATH constant, tables, inserts, queries)
     scrapers/
-      corn_futures.py          -- Yahoo Finance corn futures OHLCV
-      weather.py               -- Open-Meteo daily temp/precip for Corn Belt
-    warehouse/
-      raw/                     -- raw scraper output (CSV, migrating to Parquet)
+      config.yaml              -- scraper config (tickers, API settings, landing dirs)
+      yahoo_finance.py         -- Yahoo Finance multi-ticker futures OHLCV
+      open_meteo.py            -- Open-Meteo daily temp/precip for Corn Belt
+  warehouse/
+    raw.db                     -- SQLite database (source of truth)
+    landing/                   -- immutable Parquet files (audit trail)
   eda/
     signal_gen.py              -- feature engineering and signal generation
     backtest.py                -- backtesting engine (P&L, trade log, stats)
@@ -48,11 +50,11 @@ crop_prediction/
 
 **Prerequisites**: Python 3.11 (Anaconda), plus packages: `pandas`, `numpy`, `yfinance`, `requests`, `pyyaml`, `matplotlib`, `plotly`.
 
-**Run the scrapers** to pull raw data:
+**Run the scrapers** to pull raw data (incremental -- only fetches new days):
 
 ```bash
-python etl/scrapers/corn_futures.py
-python etl/scrapers/weather.py
+python -m etl.scrapers.yahoo_finance
+python -m etl.scrapers.open_meteo
 ```
 
 **Run a backtest** interactively via the walkthrough notebook:
@@ -83,15 +85,15 @@ results, trade_log, stats = run_backtest(df)
 
 | Source | Dataset | Range | Frequency |
 |--------|---------|-------|-----------|
-| Yahoo Finance | Corn futures (ZC=F) OHLCV | 2010--present | Daily |
+| Yahoo Finance | Futures OHLCV (corn ZC=F, soybeans ZS=F, wheat ZW=F) | 2010--present | Daily |
 | Open-Meteo | Temp (max/min) + precipitation | 2010--present | Daily |
 
-Weather data covers three Corn Belt states: Iowa, Illinois, and Nebraska. Date range and locations are configured in `etl/config.yaml`.
+Weather data covers three Corn Belt states: Iowa, Illinois, and Nebraska. All tickers and locations are configured in `etl/scrapers/config.yaml`. Raw data is stored in a SQLite database (`warehouse/raw.db`) with immutable Parquet landing files as an audit trail.
 
 ## Tech Stack
 
 - **Language**: Python 3.11
-- **Data**: pandas, NumPy, Parquet (planned primary format)
+- **Data**: pandas, NumPy, SQLite, Parquet
 - **Visualization**: matplotlib, Plotly
 - **Market data**: yfinance
 - **Weather data**: Open-Meteo API (free tier)

@@ -1,12 +1,14 @@
 # TODO -- Crop Yield Trading Strategy Platform
 
 ## Phase 1: ETL Foundation
-- [ ] Refactor corn_futures.py -> yahoo_finance.py (multi-ticker from config)
-- [ ] Refactor weather.py -> open_meteo.py (multi-location from config)
-- [ ] Update config.yaml to list multiple tickers (ZC=F corn, ZS=F soybeans, ZW=F wheat)
-- [ ] Switch raw storage from CSV to Parquet (etl/warehouse/raw/*.parquet)
+- [x] Refactor corn_futures.py -> yahoo_finance.py (multi-ticker from config)
+- [x] Refactor weather.py -> open_meteo.py (multi-location from config)
+- [x] Update config.yaml to list multiple tickers (ZC=F corn, ZS=F soybeans, ZW=F wheat)
+- [x] Switch raw storage: SQLite warehouse + immutable Parquet landing zone
+- [x] Incremental scraping: only fetch new days since last DB entry
+- [x] Create etl/db.py centralized database manager
+- [x] Update signal_gen.py to read from SQLite instead of CSV
 - [ ] Add data validation step: null checks, range checks, anomaly detection
-- [ ] Add scraper scheduling/refresh metadata (last_updated timestamps)
 
 ## Phase 2: Feature Store
 - [ ] Design feature store schema (name, ticker, source, category, frequency, description, staleness)

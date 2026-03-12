@@ -12,12 +12,17 @@ crop_prediction/
   docs/
     coding_guidelines.md       -- coding standards (MUST follow for all code changes)
   etl/
-    config.yaml                -- shared configuration for all scrapers
+    db.py                      -- SQLite manager (DB_PATH constant, tables, inserts, queries)
     scrapers/
-      corn_futures.py          -- Yahoo Finance corn futures OHLCV
-      weather.py               -- Open-Meteo daily temp/precip for Corn Belt
-    warehouse/
-      raw/                     -- raw scraper output (CSV, migrating to Parquet)
+      config.yaml              -- scraper config (tickers, API settings, landing dirs)
+      yahoo_finance.py         -- Yahoo Finance multi-ticker futures OHLCV
+      open_meteo.py            -- Open-Meteo daily temp/precip for Corn Belt
+  warehouse/
+    raw.db                     -- SQLite database (source of truth)
+    landing/                   -- immutable Parquet files (audit trail)
+      yahoo_finance/           -- one folder per ticker
+      open_meteo/
+        corn_belt/             -- one folder per location group
   eda/
     signal_gen.py              -- feature engineering and signal generation
     backtest.py                -- backtesting engine (P&L, trade log, stats)
@@ -33,14 +38,15 @@ crop_prediction/
 
 ### General
 - Before writing or refactoring any code, read `docs/coding_guidelines.md` and follow every rule.
-- All scraper configuration lives in `etl/config.yaml`. Do not hardcode dates, tickers, URLs, or file paths in scripts.
+- All scraper configuration lives in `etl/scrapers/config.yaml`. Do not hardcode dates, tickers, URLs, or file paths in scripts.
 - Python 3.11.7 via Anaconda (`/opt/anaconda3/bin/python`).
 - Open-Meteo free tier: 600 calls/min, 10k/day, 300k/month. Always sleep between API calls per config.
 
 ### Data Format
-- Parquet is the primary storage format for warehouse and feature store data. Use it for all new data files.
-- Keep CSV export as a convenience option, not the primary format.
-- Raw scraper output goes to `etl/warehouse/raw/`. Engineered features go to `features/`.
+- SQLite (`warehouse/raw.db`) is the source of truth for all raw data. Downstream code reads from SQLite via `pd.read_sql()`.
+- Parquet landing zone (`warehouse/landing/`) stores immutable scraper output as an audit trail. Never modify landing files.
+- Parquet is the primary format for the feature store. Engineered features go to `features/`.
+- All database interactions go through `etl/db.py`. Do not create connections directly in scrapers or consumers.
 
 ### Feature Store
 - Each feature set is a Parquet file in `features/`.
@@ -53,7 +59,7 @@ crop_prediction/
 
 ### Streamlit App
 - App code lives in `app/`.
-- No hardcoded file paths or configuration in app code -- read from `etl/config.yaml` or feature registry.
+- No hardcoded file paths or configuration in app code -- read from `etl/scrapers/config.yaml` or feature registry.
 - Strategy selection should auto-discover available strategies from the `strategies/` directory.
 
 ### Backtest Engine

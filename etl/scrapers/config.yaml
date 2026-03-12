@@ -1,0 +1,33 @@
+scraper_defaults:
+  historical_start_date: "2010-01-01"
+
+yahoo_finance:
+  tickers:
+    - symbol: "ZC=F"
+      name: "corn"
+    - symbol: "ZS=F"
+      name: "soybeans"
+    - symbol: "ZW=F"
+      name: "wheat"
+  landing_dir: "warehouse/landing/yahoo_finance"
+
+open_meteo:
+  base_url: "https://archive-api.open-meteo.com/v1/archive"
+  timezone: "America/Chicago"
+  request_delay_seconds: 1
+  request_timeout_seconds: 30
+  daily_variables:
+    - "temperature_2m_max"
+    - "temperature_2m_min"
+    - "precipitation_sum"
+  landing_dir: "warehouse/landing/open_meteo/corn_belt"
+  locations:
+    - state: "Iowa"
+      lat: 41.59
+      lon: -93.62
+    - state: "Illinois"
+      lat: 39.80
+      lon: -89.64
+    - state: "Nebraska"
+      lat: 40.81
+      lon: -96.70

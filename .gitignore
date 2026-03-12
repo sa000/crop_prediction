@@ -1,5 +1,6 @@
 # Data files (reproducible via scrapers)
-etl/warehouse/raw/*.csv
+warehouse/raw.db
+warehouse/landing/
 
 # Python
 __pycache__/
