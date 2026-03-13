@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import importlib
+import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -423,6 +424,64 @@ def update_registry(config: dict) -> None:
                     if feat["category"] == category and "states" in feat:
                         if agg_name not in feat["states"]:
                             feat["states"].append(agg_name)
+
+    # Build metadata.parquet (one row per feature per entity)
+    metadata_rows = []
+    for category, cat_cfg in config.items():
+        entity_col = cat_cfg["entity_column"]
+        entity_type = "ticker" if entity_col == "ticker" else "region"
+
+        all_entities = [e["name"] for e in cat_cfg["entities"]]
+        for agg in cat_cfg.get("aggregations", []):
+            all_entities.append(agg["name"])
+
+        for entity_name in all_entities:
+            df = store.read_features(category, entity_name)
+            if df is None:
+                continue
+
+            parquet_path = str(
+                store.get_parquet_path(category, entity_name)
+                .relative_to(FEATURES_DIR.parent)
+            )
+            date_max = str(df["date"].max())
+
+            for feat_cfg in cat_cfg["features"]:
+                feat_name = feat_cfg["name"]
+                if feat_name not in df.columns:
+                    continue
+
+                col = df[feat_name]
+                non_null = col.dropna()
+
+                available_from = None
+                if not non_null.empty:
+                    first_idx = col.first_valid_index()
+                    available_from = str(df.loc[first_idx, "date"])
+
+                metadata_rows.append({
+                    "name": feat_name,
+                    "category": category,
+                    "entity": entity_name,
+                    "entity_type": entity_type,
+                    "source_table": cat_cfg["source_table"],
+                    "description": feat_cfg.get("description", ""),
+                    "params": json.dumps(dict(feat_cfg["params"])),
+                    "available_from": available_from,
+                    "freshness": date_max,
+                    "row_count": len(df),
+                    "stat_min": float(non_null.min()) if not non_null.empty else None,
+                    "stat_max": float(non_null.max()) if not non_null.empty else None,
+                    "stat_mean": float(non_null.mean()) if not non_null.empty else None,
+                    "stat_std": float(non_null.std()) if not non_null.empty else None,
+                    "null_pct": round(col.isna().mean() * 100, 2),
+                    "parquet_path": parquet_path,
+                })
+
+    if metadata_rows:
+        metadata_df = pd.DataFrame(metadata_rows)
+        store.write_metadata(metadata_df)
+        logger.info("Metadata written: %d rows", len(metadata_df))
 
     # Clean up empty ticker maps
     ticker_feature_map = {k: v for k, v in ticker_feature_map.items() if v}

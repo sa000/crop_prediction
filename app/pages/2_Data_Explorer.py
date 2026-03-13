@@ -11,10 +11,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app import charts
+from app import catalog_agent, charts
 from app.style import inject_css, sidebar_logo, BG_CARD
 from etl import db
 from features import query as fquery
+from features import store
 
 inject_css()
 sidebar_logo()
@@ -122,6 +123,98 @@ with tab_price:
 
 with tab_features:
     registry = load_registry()
+
+    # --- AI Catalog Agent ---
+    has_api_key = False
+    try:
+        api_key = st.secrets["ANTHROPIC_API_KEY"]
+        if api_key and not api_key.startswith("sk-ant-your-key"):
+            has_api_key = True
+    except (KeyError, FileNotFoundError):
+        pass
+
+    if has_api_key:
+        question = st.text_input(
+            "Ask about features",
+            placeholder="e.g. What weather data do we have?",
+            key="catalog_question",
+        )
+
+        if question:
+            metadata_df = store.read_metadata()
+            if metadata_df.empty:
+                st.warning(
+                    "Feature metadata not found. "
+                    "Run `python -m features.pipeline --rebuild` first."
+                )
+            else:
+                with st.spinner("Searching catalog..."):
+                    result = catalog_agent.ask(question, metadata_df, api_key)
+                st.session_state["agent_result"] = result
+
+        if "agent_result" in st.session_state:
+            result = st.session_state["agent_result"]
+            st.markdown(
+                f'<p style="color: #e2e8f0; font-size: 0.95rem;">'
+                f'{result["answer"]}</p>',
+                unsafe_allow_html=True,
+            )
+
+            if result["features"]:
+                results_df = pd.DataFrame(result["features"])
+                display_cols = [
+                    c for c in ["name", "category", "entity", "description"]
+                    if c in results_df.columns
+                ]
+                if display_cols:
+                    event = st.dataframe(
+                        results_df[display_cols],
+                        on_select="rerun",
+                        selection_mode="single-row",
+                        hide_index=True,
+                        key="agent_results_table",
+                    )
+
+                    selected_rows = event.selection.rows
+                    if selected_rows:
+                        sel = results_df.iloc[selected_rows[0]]
+                        sel_name = sel.get("name", "")
+
+                        # Normalize category from model output to file path
+                        raw_cat = sel.get("category", "").lower()
+                        raw_cat = raw_cat.replace(" features", "")
+                        sel_cat = raw_cat.replace(" ", "_")
+
+                        sel_entity = sel.get("entity", "").lower().strip()
+
+                        if sel_cat and sel_entity and sel_name:
+                            sel_df = fquery.read_parquet(
+                                sel_cat, sel_entity,
+                                columns=["date", sel_name],
+                            )
+                            if not sel_df.empty:
+                                show_chart(
+                                    charts.feature_line_chart(
+                                        sel_df, sel_name, sel_entity, sel_cat
+                                    ),
+                                    height=520,
+                                )
+                            else:
+                                st.warning(
+                                    f"No data for {sel_cat}/{sel_entity}/{sel_name}."
+                                )
+    else:
+        st.info(
+            "Add your Anthropic API key to `.streamlit/secrets.toml` "
+            "to enable the AI feature catalog assistant."
+        )
+
+    # --- Manual dropdowns ---
+    st.divider()
+    st.markdown(
+        '<p style="color: #64748b; font-size: 0.85rem;">Or browse manually</p>',
+        unsafe_allow_html=True,
+    )
 
     col_cat, col_entity, col_feat = st.columns([1, 1, 1])
     with col_cat:

@@ -12,6 +12,8 @@ import duckdb
 import pandas as pd
 import yaml
 
+from features import store
+
 logger = logging.getLogger(__name__)
 
 FEATURES_DIR = Path(__file__).resolve().parent
@@ -51,15 +53,24 @@ def list_tickers() -> list[dict]:
 
 
 def list_features(category: str | None = None) -> list[dict]:
-    """List available features with metadata.
+    """List available features with metadata from Parquet.
+
+    Reads from metadata.parquet (one row per feature per entity).
+    Falls back to registry.yaml if metadata Parquet does not exist.
 
     Args:
         category: Optional category filter.
 
     Returns:
-        List of feature dicts with name, category, source, description,
-        freshness, available_from, tickers/states.
+        List of feature dicts.
     """
+    metadata = store.read_metadata()
+    if not metadata.empty:
+        if category:
+            metadata = metadata[metadata["category"] == category]
+        return metadata.to_dict("records")
+
+    # Fallback to YAML
     registry = load_registry()
     features = registry.get("features", [])
     if category:

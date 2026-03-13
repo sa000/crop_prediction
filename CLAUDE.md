@@ -37,8 +37,9 @@ crop_prediction/
   features/
     config.yaml                -- feature definitions (windows, entities, parameters)
     registry.yaml              -- auto-generated metadata (tickers, features, mappings)
+    metadata.parquet           -- auto-generated feature metadata (one row per feature per entity)
     pipeline.py                -- orchestrator CLI (incremental + --rebuild)
-    store.py                   -- Parquet I/O (read, write, append)
+    store.py                   -- Parquet I/O (read, write, append, metadata)
     query.py                   -- DuckDB query layer for consumers
     compute/
       momentum.py              -- SMA, EMA, MACD, RSI
@@ -55,10 +56,11 @@ crop_prediction/
   app/                         -- Streamlit web application
     main.py                    -- entry point (streamlit run app/main.py)
     discovery.py               -- strategy auto-discovery from strategies/
+    catalog_agent.py           -- AI feature catalog agent (Claude Haiku, structured JSON)
     charts.py                  -- Plotly chart builders (pure functions, no Streamlit)
     pages/
       1_Strategy_Dashboard.py  -- backtest results, risk metrics, charts
-      2_Data_Explorer.py       -- browse price, weather, and feature data
+      2_Data_Explorer.py       -- browse price, weather, and feature data (+ AI catalog)
 ```
 
 ## Rules

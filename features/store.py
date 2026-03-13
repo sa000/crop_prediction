@@ -13,6 +13,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 FEATURES_DIR = Path(__file__).resolve().parent
+METADATA_PATH = FEATURES_DIR / "metadata.parquet"
 
 
 def get_parquet_path(category: str, entity_name: str) -> Path:
@@ -102,3 +103,29 @@ def append_features(
     combined = pd.concat([existing, new_rows], ignore_index=True)
     combined = combined.drop_duplicates(subset=["date"], keep="last")
     return write_features(combined, category, entity_name)
+
+
+def write_metadata(df: pd.DataFrame) -> Path:
+    """Write the feature metadata DataFrame to Parquet.
+
+    Args:
+        df: Metadata DataFrame with one row per feature per entity.
+
+    Returns:
+        Path to the written file.
+    """
+    METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(METADATA_PATH, index=False)
+    logger.info("Wrote %d metadata rows to %s", len(df), METADATA_PATH)
+    return METADATA_PATH
+
+
+def read_metadata() -> pd.DataFrame:
+    """Read the feature metadata Parquet file.
+
+    Returns:
+        Metadata DataFrame, or empty DataFrame if file does not exist.
+    """
+    if not METADATA_PATH.exists():
+        return pd.DataFrame()
+    return pd.read_parquet(METADATA_PATH)
