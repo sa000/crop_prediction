@@ -11,24 +11,33 @@ import pandas as pd
 import plotly.graph_objects as go
 
 COLORS = {
-    "equity": "#4a90d9",
-    "price": "#2c3e50",
-    "long": "rgba(39, 174, 96, 0.15)",
-    "short": "rgba(231, 76, 60, 0.15)",
-    "entry": "#27ae60",
-    "exit": "#e74c3c",
-    "drawdown": "rgba(231, 76, 60, 0.4)",
-    "drawdown_line": "#c0392b",
-    "reference": "rgba(0, 0, 0, 0.3)",
-    "histogram": "#4a90d9",
-    "var_line": "#c0392b",
+    "equity": "#3B82F6",
+    "price": "#e2e8f0",
+    "long": "rgba(34, 197, 94, 0.13)",
+    "short": "rgba(239, 68, 68, 0.13)",
+    "entry": "#22c55e",
+    "exit": "#ef4444",
+    "drawdown": "rgba(239, 68, 68, 0.35)",
+    "drawdown_line": "#ef4444",
+    "reference": "rgba(148, 163, 184, 0.3)",
+    "histogram": "#3B82F6",
+    "var_line": "#ef4444",
+    "grid": "rgba(148, 163, 184, 0.08)",
+    "text": "#94a3b8",
 }
 
+BG_DARK = "#0f1117"
+BG_CARD = "#1a1b2e"
+
 LAYOUT_DEFAULTS = dict(
-    template="plotly_white",
+    template="plotly_dark",
+    paper_bgcolor=BG_CARD,
+    plot_bgcolor=BG_DARK,
     margin=dict(l=60, r=30, t=50, b=50),
     hovermode="x unified",
-    font=dict(size=12),
+    font=dict(size=12, color=COLORS["text"]),
+    xaxis=dict(gridcolor=COLORS["grid"], zeroline=False),
+    yaxis=dict(gridcolor=COLORS["grid"], zeroline=False),
 )
 
 
@@ -68,6 +77,7 @@ def equity_curve(backtest_df: pd.DataFrame, capital: float) -> go.Figure:
         y=capital / 1e6, line_dash="dash", line_color=COLORS["reference"],
         annotation_text=f"${capital / 1e6:.0f}M starting capital",
         annotation_position="bottom right",
+        annotation_font_color=COLORS["text"],
     )
     return _apply_layout(fig, "Equity Curve", "Equity ($M)")
 
@@ -204,7 +214,8 @@ def rolling_sharpe_chart(series: pd.Series) -> go.Figure:
     ))
     for level in [0, 1, 2]:
         fig.add_hline(y=level, line_dash="dot", line_color=COLORS["reference"],
-                      annotation_text=str(level), annotation_position="bottom right")
+                      annotation_text=str(level), annotation_position="bottom right",
+                      annotation_font_color=COLORS["text"])
     return _apply_layout(fig, "Rolling Sharpe Ratio (60-day)", "Sharpe Ratio")
 
 
@@ -227,7 +238,8 @@ def rolling_win_rate_chart(series: pd.Series) -> go.Figure:
         line=dict(color=COLORS["equity"], width=1.5),
     ))
     fig.add_hline(y=50, line_dash="dot", line_color=COLORS["reference"],
-                  annotation_text="50%", annotation_position="bottom right")
+                  annotation_text="50%", annotation_position="bottom right",
+                  annotation_font_color=COLORS["text"])
     fig.update_yaxes(range=[0, 100])
     return _apply_layout(fig, "Rolling Win Rate (last 20 trades)", "Win Rate (%)")
 

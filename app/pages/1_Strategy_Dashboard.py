@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import charts, discovery
+from app.style import inject_css, sidebar_logo, BG_CARD, BG_DARK
 from eda.signal_gen import load_futures
 from features import store
 from strategies import analytics
@@ -25,14 +26,27 @@ CAPITAL = 100_000_000
 RISK_PCT = 0.01
 COST_PER_TRADE = 0.0
 
+inject_css()
+sidebar_logo()
+
 
 def show_chart(fig, height=450):
     """Render a Plotly figure via HTML to bypass st.plotly_chart issues."""
     html = fig.to_html(include_plotlyjs="cdn", full_html=False)
-    components.html(f"<div>{html}</div>", height=height, scrolling=False)
+    wrapper = f"""
+    <div style="background: {BG_CARD}; border-radius: 8px;
+                border: 1px solid rgba(59,130,246,0.12); padding: 4px;">
+        {html}
+    </div>
+    """
+    components.html(wrapper, height=height, scrolling=False)
 
 
-st.title("Strategy Dashboard")
+st.markdown(
+    '<h1 style="font-weight: 600; font-size: 1.8rem; color: #e2e8f0;">'
+    'Strategy Dashboard</h1>',
+    unsafe_allow_html=True,
+)
 
 # --- Sidebar ---
 strategies = discovery.discover_strategies()
@@ -41,24 +55,21 @@ if not strategies:
     st.error("No strategies found in strategies/ directory.")
     st.stop()
 
+st.sidebar.markdown("---")
 selected_name = st.sidebar.selectbox("Strategy", list(strategies.keys()))
 strategy_module = strategies[selected_name]
 metadata = discovery.get_strategy_metadata(strategy_module)
-
-if metadata["description"]:
-    st.sidebar.markdown("---")
-    st.sidebar.caption(metadata["description"])
 
 if metadata["parameters"]:
     with st.sidebar.expander("Strategy Parameters"):
         for name, value in metadata["parameters"].items():
             st.code(f"{name} = {value}", language="python")
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Backtest Settings**")
-st.sidebar.text(f"Capital: ${CAPITAL / 1e6:.0f}M")
-st.sidebar.text(f"Risk per trade: {RISK_PCT:.0%}")
-st.sidebar.text(f"Cost per trade: ${COST_PER_TRADE:.0f}")
+st.sidebar.markdown(
+    f'<p style="color: #64748b; font-size: 0.75rem; margin-top: 1rem;">'
+    f'Capital: $100M &nbsp;|&nbsp; Risk: 1% &nbsp;|&nbsp; Cost: $0</p>',
+    unsafe_allow_html=True,
+)
 
 run = st.sidebar.button("Run Backtest", type="primary", use_container_width=True)
 
@@ -92,18 +103,25 @@ if run:
     st.session_state["strategy_name"] = selected_name
 
 if "results" not in st.session_state:
-    st.markdown("Select a strategy and click **Run Backtest** to begin.")
+    st.markdown(
+        '<p style="color: #64748b; margin-top: 3rem; text-align: center;">'
+        'Select a strategy and click <b>Run Backtest</b> to begin.</p>',
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 result_df, trade_log, stats, rs, rw, mr, dd = st.session_state["results"]
 
-# --- Summary Stats ---
-st.markdown(f"### {st.session_state['strategy_name']} -- Performance Summary")
-st.caption(
-    f"{result_df.index[0].date()} to {result_df.index[-1].date()}  |  "
-    f"{len(result_df)} trading days"
+# --- Header ---
+st.markdown(
+    f'<p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem;">'
+    f'{st.session_state["strategy_name"]} &nbsp;&bull;&nbsp; '
+    f'{result_df.index[0].date()} to {result_df.index[-1].date()} &nbsp;&bull;&nbsp; '
+    f'{len(result_df)} trading days</p>',
+    unsafe_allow_html=True,
 )
 
+# --- Summary Stats ---
 row1 = st.columns(5)
 pnl_color = "normal" if stats["total_pnl"] >= 0 else "inverse"
 row1[0].metric("Total P&L", f"${stats['total_pnl']:,.0f}", delta=f"{stats['total_return_pct']:.3f}%", delta_color=pnl_color)
@@ -120,7 +138,7 @@ row2[3].metric("VaR 95%", f"${stats['var_95']:,.0f}")
 row2[4].metric("CVaR 95%", f"${stats['cvar_95']:,.0f}")
 
 # --- Charts ---
-st.markdown("---")
+st.markdown("")
 
 show_chart(charts.equity_curve(result_df, CAPITAL), height=460)
 show_chart(charts.price_with_signals(result_df, trade_log), height=490)
@@ -167,8 +185,8 @@ if not trade_log.empty:
             "pnl": "${:,.2f}",
             "pnl_per_unit": "${:.2f}",
         }).map(
-            lambda v: "color: green" if isinstance(v, (int, float)) and v > 0
-            else ("color: red" if isinstance(v, (int, float)) and v < 0 else ""),
+            lambda v: "color: #22c55e" if isinstance(v, (int, float)) and v > 0
+            else ("color: #ef4444" if isinstance(v, (int, float)) and v < 0 else ""),
             subset=["pnl"],
         ),
         use_container_width=True,

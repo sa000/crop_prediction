@@ -1,27 +1,80 @@
 """Crop Yield Trading Platform -- Streamlit entry point.
 
-Configures page layout and sidebar branding. Strategy Dashboard and Data
-Explorer pages are auto-discovered from the app/pages/ directory."""
+Configures page layout, applies dark theme styling, and renders the
+landing page with Trex Quant branding."""
 
 import streamlit as st
 
+from app.style import inject_css, sidebar_logo
+
 st.set_page_config(
-    page_title="Crop Yield Trading Platform",
+    page_title="Trex Quant -- Crop Yield Trading",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-st.sidebar.title("Crop Yield Trading Platform")
-st.sidebar.caption("Agricultural commodity futures strategy analysis")
-
-st.title("Crop Yield Trading Platform")
+inject_css()
+sidebar_logo()
 
 st.markdown(
     """
-    Navigate using the sidebar to access:
+    <div style="text-align: center; padding: 3rem 0 1rem 0;">
+        <h1 style="font-weight: 600; font-size: 2.2rem; color: #e2e8f0;
+                    margin-bottom: 0.3rem;">
+            Crop Yield Trading Platform
+        </h1>
+        <p style="color: #94a3b8; font-size: 1rem; margin-bottom: 2rem;">
+            Agricultural commodity futures strategy analysis
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-    - **Strategy Dashboard** -- Run backtests on crop futures strategies,
-      view performance metrics, equity curves, and trade logs.
-    - **Data Explorer** -- Browse price data, weather data, and engineered
-      features from the feature store.
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown(
+        """
+        <div style="background: #1a1b2e; border: 1px solid rgba(59,130,246,0.2);
+                    border-radius: 10px; padding: 1.5rem; height: 160px;">
+            <h3 style="color: #3B82F6; font-size: 1.1rem; margin: 0 0 0.5rem 0;
+                        border: none; padding: 0;">
+                Strategy Dashboard
+            </h3>
+            <p style="color: #94a3b8; font-size: 0.9rem; line-height: 1.5;">
+                Run backtests on crop futures strategies. View equity curves,
+                risk metrics, trade signals, and full trade logs.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with col2:
+    st.markdown(
+        """
+        <div style="background: #1a1b2e; border: 1px solid rgba(59,130,246,0.2);
+                    border-radius: 10px; padding: 1.5rem; height: 160px;">
+            <h3 style="color: #3B82F6; font-size: 1.1rem; margin: 0 0 0.5rem 0;
+                        border: none; padding: 0;">
+                Data Explorer
+            </h3>
+            <p style="color: #94a3b8; font-size: 0.9rem; line-height: 1.5;">
+                Browse price data, weather data, and engineered features
+                from the feature store.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.markdown(
     """
+    <p style="text-align: center; color: #475569; font-size: 0.75rem;
+              margin-top: 3rem;">
+        Navigate using the sidebar
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
