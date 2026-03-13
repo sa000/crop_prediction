@@ -21,29 +21,39 @@
 - [ ] Add feature quality checks (staleness, coverage, drift detection)
 
 ## Phase 3: Strategy Framework
-- [ ] Define standard strategy interface (generate_signal function signature)
-- [ ] Create strategies/ directory
-- [ ] Implement weather-based strategy (refactor existing signal_gen.py)
+- [x] Define standard strategy interface (generate_signal function signature)
+- [x] Create strategies/ directory
+- [x] Implement weather-based strategy (refactor existing signal_gen.py)
 - [ ] Implement momentum strategy (e.g., moving average crossover)
 - [ ] Implement mean reversion strategy (e.g., Bollinger band breakout)
 - [ ] Each strategy reads from feature store, outputs signal DataFrame
 
 ## Phase 4: Backtest Engine Enhancements
-- [ ] Add configurable transaction cost parameter (default 0, user-settable %)
-- [ ] Add optional position sizing (toggle: binary all-in vs 1-2% risk per trade)
-- [ ] Add best/worst trade to summary stats
-- [ ] Ensure backtest works with any strategy that follows the standard interface
-- [ ] Keep $100M as default allocation, make it user-configurable
+- [x] Add configurable transaction cost parameter (default 0, user-settable %)
+- [x] Add optional position sizing (toggle: binary all-in vs 1-2% risk per trade)
+- [x] Add best/worst trade to summary stats
+- [x] Ensure backtest works with any strategy that follows the standard interface
+- [x] Keep $100M as default allocation, make it user-configurable
 
-## Phase 5: Streamlit Web App (Local)
-- [ ] Create app/ directory with main Streamlit app
-- [ ] Strategy selection dropdown (auto-discovers strategies from strategies/)
-- [ ] Parameter inputs (allocation, transaction cost, position sizing toggle, date range)
-- [ ] "Run Backtest" button that calls backtest engine
-- [ ] Results dashboard: P&L chart, drawdown, daily P&L bars, trade log table
-- [ ] Summary stats card (total P&L, Sharpe, max drawdown, win rate, best/worst trade)
+## Phase 5a: Streamlit Skeleton (Deploy Locally)
+- [x] Create app/ directory structure (app/__init__.py, app/pages/__init__.py)
+- [x] Build strategy auto-discovery module (app/discovery.py)
+- [x] Create app entry point with sidebar branding (app/main.py)
+- [x] Add placeholder Strategy Dashboard page (app/pages/1_Strategy_Dashboard.py)
+- [x] Add placeholder Data Explorer page (app/pages/2_Data_Explorer.py)
+- [x] Update CLAUDE.md project structure with app/ entries
+- [x] Verify: `streamlit run app/main.py` loads, sidebar shows both pages
 
-## Phase 6: Deployment
+## Phase 5b: Strategy Dashboard
+- [x] Add Sortino, Calmar, VaR 95%, CVaR 95% to backtest compute_stats()
+- [x] Create strategies/analytics.py (rolling Sharpe, rolling win rate, monthly returns, drawdown periods)
+- [x] Create app/charts.py with Plotly chart builders (equity curve, drawdown, price+signals, heatmap, histogram, rolling metrics)
+- [x] Build full Strategy Dashboard page (sidebar controls, summary stats, 7 chart types, trade log table)
+- [ ] Verify: run Weather Precipitation backtest, all metrics and charts render interactively
+
+## Phase 5c: Data Explorer + Cloud Deployment
+- [ ] Add price_chart and feature_time_series to app/charts.py
+- [ ] Build full Data Explorer page (price data, feature explorer, weather data sections)
 - [ ] Deploy to Streamlit Community Cloud (free, from GitHub repo)
 - [ ] Add secrets management for any API keys (future AI features)
 - [ ] Verify public URL works, app sleeps/wakes correctly

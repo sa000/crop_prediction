@@ -268,6 +268,15 @@ def compute_stats(
     else:
         stats["sharpe_ratio"] = 0.0
 
+    # Sortino ratio (annualized, downside deviation only)
+    daily_returns = daily_pnl / capital
+    downside = daily_returns[daily_returns < 0]
+    downside_std = downside.std() if len(downside) > 0 else 0.0
+    ann_return = daily_returns.mean() * 252
+    stats["sortino_ratio"] = (
+        ann_return / (downside_std * np.sqrt(252)) if downside_std > 0 else 0.0
+    )
+
     # Max drawdown from equity curve
     equity = df["equity"]
     running_max = equity.cummax()
@@ -277,6 +286,17 @@ def compute_stats(
     stats["max_drawdown_pct"] = (
         (stats["max_drawdown"] / peak_at_trough) * 100 if peak_at_trough > 0 else 0.0
     )
+
+    # Calmar ratio (annualized return / max drawdown %)
+    stats["calmar_ratio"] = (
+        (ann_return * 100) / abs(stats["max_drawdown_pct"])
+        if stats["max_drawdown_pct"] != 0 else 0.0
+    )
+
+    # VaR 95% and CVaR 95% (in dollars, from daily P&L)
+    stats["var_95"] = float(np.percentile(daily_pnl, 5)) if len(daily_pnl) > 0 else 0.0
+    tail = daily_pnl[daily_pnl <= stats["var_95"]]
+    stats["cvar_95"] = float(tail.mean()) if len(tail) > 0 else 0.0
 
     return stats
 

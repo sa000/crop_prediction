@@ -11,6 +11,7 @@ crop_prediction/
   TODO.md                      -- phased development roadmap
   docs/
     coding_guidelines.md       -- coding standards (MUST follow for all code changes)
+    planning_guidelines.md     -- plan file workflow (MUST follow for all plans)
   etl/
     db.py                      -- SQLite manager (DB_PATH constant, tables, inserts, queries)
     validate.py                -- validation orchestrator (runs checks, splits clean/rejected)
@@ -52,12 +53,19 @@ crop_prediction/
     weather_strategy_2025.ipynb -- 2025 backtest notebook with visuals
     visuals/                   -- saved charts from strategy backtests
   app/                         -- Streamlit web application
+    main.py                    -- entry point (streamlit run app/main.py)
+    discovery.py               -- strategy auto-discovery from strategies/
+    charts.py                  -- Plotly chart builders (pure functions, no Streamlit)
+    pages/
+      1_Strategy_Dashboard.py  -- backtest results, risk metrics, charts
+      2_Data_Explorer.py       -- browse price, weather, and feature data
 ```
 
 ## Rules
 
 ### General
 - Before writing or refactoring any code, read `docs/coding_guidelines.md` and follow every rule.
+- Before implementing any plan, read `docs/planning_guidelines.md` and follow the workflow.
 - All scraper configuration lives in `etl/scrapers/config.yaml`. Do not hardcode dates, tickers, URLs, or file paths in scripts.
 - Python 3.11.7 via Anaconda (`/opt/anaconda3/bin/python`).
 - Open-Meteo free tier: 600 calls/min, 10k/day, 300k/month. Always sleep between API calls per config.
