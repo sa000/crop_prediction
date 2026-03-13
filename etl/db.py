@@ -14,7 +14,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = PROJECT_ROOT / "warehouse" / "raw.db"
+DB_PATH = PROJECT_ROOT / "warehouse" / "warehouse.db"
 
 CREATE_FUTURES_DAILY = """
 CREATE TABLE IF NOT EXISTS futures_daily (
@@ -40,6 +40,19 @@ CREATE TABLE IF NOT EXISTS weather_daily (
 );
 """
 
+CREATE_VALIDATION_LOG = """
+CREATE TABLE IF NOT EXISTS validation_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    checked_at   TEXT NOT NULL,
+    source_table TEXT NOT NULL,
+    date         TEXT NOT NULL,
+    entity_key   TEXT NOT NULL,
+    check_name   TEXT NOT NULL,
+    severity     TEXT NOT NULL,
+    details      TEXT
+);
+"""
+
 
 def get_connection() -> sqlite3.Connection:
     """Open a connection to the SQLite warehouse database.
@@ -54,13 +67,14 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_tables(conn: sqlite3.Connection) -> None:
-    """Create the futures_daily and weather_daily tables if they do not exist.
+    """Create all warehouse tables if they do not exist.
 
     Args:
         conn: An open SQLite connection.
     """
     conn.execute(CREATE_FUTURES_DAILY)
     conn.execute(CREATE_WEATHER_DAILY)
+    conn.execute(CREATE_VALIDATION_LOG)
     conn.commit()
     logger.debug("Tables initialized")
 
@@ -127,3 +141,32 @@ def query_max_date(conn: sqlite3.Connection, table: str, filter_col: str, filter
     )
     result = cursor.fetchone()[0]
     return result
+
+
+def log_validation(conn: sqlite3.Connection, issues: list[dict]) -> int:
+    """Bulk-insert validation issues into the validation_log table.
+
+    Args:
+        conn: An open SQLite connection.
+        issues: List of dicts with keys: checked_at, source_table, date,
+            entity_key, check_name, severity, details.
+
+    Returns:
+        Number of rows inserted.
+    """
+    if not issues:
+        return 0
+    rows = [
+        (i["checked_at"], i["source_table"], i["date"], i["entity_key"],
+         i["check_name"], i["severity"], i["details"])
+        for i in issues
+    ]
+    conn.executemany(
+        "INSERT INTO validation_log "
+        "(checked_at, source_table, date, entity_key, check_name, severity, details) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    logger.info("Logged %d validation issues", len(rows))
+    return len(rows)

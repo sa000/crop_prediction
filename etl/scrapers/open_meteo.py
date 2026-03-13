@@ -1,8 +1,8 @@
 """Scrape daily temperature and precipitation data from Open-Meteo for
 configured Corn Belt locations.
 
-Downloads data incrementally, writes immutable Parquet files to the
-landing zone, and loads rows into the SQLite warehouse in normalized
+Downloads data incrementally, writes immutable CSV files to the landing
+zone, and loads validated rows into the SQLite warehouse in normalized
 long format (one row per date + state).
 """
 
@@ -16,21 +16,26 @@ import requests
 import yaml
 
 from etl import db
+from etl import validate
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = PROJECT_ROOT / "etl" / "scrapers" / "config.yaml"
+PIPELINE_PATH = PROJECT_ROOT / "etl" / "pipeline.yaml"
 
 
 def load_config() -> dict:
-    """Read config.yaml and return open_meteo scraper settings.
+    """Read config.yaml and pipeline.yaml, return open_meteo scraper settings.
 
     Returns:
-        Dict with API settings, locations, landing_dir, and historical_start_date.
+        Dict with API settings, locations, landing_dir, historical_start_date,
+        and validation config.
     """
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
+    with open(PIPELINE_PATH) as f:
+        pipeline_cfg = yaml.safe_load(f)
     return {
         "historical_start_date": cfg["scraper_defaults"]["historical_start_date"],
         "base_url": cfg["open_meteo"]["base_url"],
@@ -40,6 +45,7 @@ def load_config() -> dict:
         "daily_variables": cfg["open_meteo"]["daily_variables"],
         "locations": cfg["open_meteo"]["locations"],
         "landing_dir": PROJECT_ROOT / cfg["open_meteo"]["landing_dir"],
+        "validation": pipeline_cfg["validation"],
     }
 
 
@@ -134,7 +140,7 @@ def fetch_all_locations(cfg: dict, start: date, end: date) -> pd.DataFrame:
 
 
 def save_landing_files(df: pd.DataFrame, landing_dir: Path) -> list[Path]:
-    """Write immutable Parquet files to the landing zone, split by year.
+    """Write immutable CSV files to the landing zone, split by year.
 
     Historical backfills produce one file per year. Current-year data
     produces one file per day.
@@ -156,27 +162,16 @@ def save_landing_files(df: pd.DataFrame, landing_dir: Path) -> list[Path]:
         group = group.drop(columns=["_year"])
         if year == current_year:
             for day_str, day_group in group.groupby("date"):
-                path = landing_dir / f"{day_str}.parquet"
-                day_group.to_parquet(path, index=False)
+                path = landing_dir / f"{day_str}.csv"
+                day_group.to_csv(path, index=False)
                 written.append(path)
         else:
-            path = landing_dir / f"{year}.parquet"
-            group.to_parquet(path, index=False)
+            path = landing_dir / f"{year}.csv"
+            group.to_csv(path, index=False)
             written.append(path)
 
     logger.info("Wrote %d landing file(s) to %s", len(written), landing_dir)
     return written
-
-
-def load_to_db(conn, df: pd.DataFrame) -> None:
-    """Insert weather rows into the weather_daily table.
-
-    Args:
-        conn: SQLite connection.
-        df: DataFrame with columns: date, state, temp_max_f, temp_min_f, precip_in.
-    """
-    clean = df[["date", "state", "temp_max_f", "temp_min_f", "precip_in"]].copy()
-    db.insert_weather(conn, clean)
 
 
 def main():
@@ -198,11 +193,19 @@ def main():
     yesterday = date.today() - timedelta(days=1)
     df = fetch_all_locations(cfg, start, yesterday)
     save_landing_files(df, cfg["landing_dir"])
-    load_to_db(conn, df)
+
+    val_cfg = cfg["validation"]
+    clean_df, issues = validate.validate_weather(df, conn, val_cfg)
+
+    if issues:
+        db.log_validation(conn, issues)
+
+    if not clean_df.empty:
+        db.insert_weather(conn, clean_df)
 
     logger.info(
-        "Loaded %d weather rows (%s to %s)",
-        len(df), df["date"].min(), df["date"].max(),
+        "Weather: %d rows fetched, %d passed validation (%s to %s)",
+        len(df), len(clean_df), df["date"].min(), df["date"].max(),
     )
     conn.close()
 

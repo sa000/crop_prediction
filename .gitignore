@@ -1,6 +1,12 @@
 # Data files (reproducible via scrapers)
-warehouse/raw.db
+warehouse/warehouse.db
 warehouse/landing/
+
+# Feature store output (reproducible via pipeline)
+features/momentum/
+features/mean_reversion/
+features/weather/
+features/registry.yaml
 
 # Python
 __pycache__/

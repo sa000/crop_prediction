@@ -1,8 +1,8 @@
 """Scrape daily futures OHLCV data from Yahoo Finance for all configured tickers.
 
 Downloads data incrementally (only fetches days after the last known date in
-the database), writes immutable Parquet files to the landing zone, and loads
-rows into the SQLite warehouse.
+the database), writes immutable CSV files to the landing zone, and loads
+validated rows into the SQLite warehouse.
 """
 
 import logging
@@ -14,26 +14,31 @@ import yaml
 import yfinance as yf
 
 from etl import db
+from etl import validate
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = PROJECT_ROOT / "etl" / "scrapers" / "config.yaml"
+PIPELINE_PATH = PROJECT_ROOT / "etl" / "pipeline.yaml"
 
 
 def load_config() -> dict:
-    """Read config.yaml and return yahoo_finance scraper settings.
+    """Read config.yaml and pipeline.yaml, return yahoo_finance scraper settings.
 
     Returns:
         Dict with keys: historical_start_date (str), tickers (list of dicts),
-        landing_dir (Path).
+        landing_dir (Path), validation (dict).
     """
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
+    with open(PIPELINE_PATH) as f:
+        pipeline_cfg = yaml.safe_load(f)
     return {
         "historical_start_date": cfg["scraper_defaults"]["historical_start_date"],
         "tickers": cfg["yahoo_finance"]["tickers"],
         "landing_dir": PROJECT_ROOT / cfg["yahoo_finance"]["landing_dir"],
+        "validation": pipeline_cfg["validation"],
     }
 
 
@@ -87,7 +92,7 @@ def download_ticker(symbol: str, start: date, end: date) -> pd.DataFrame:
 
 
 def save_landing_files(df: pd.DataFrame, landing_dir: Path, ticker_name: str) -> list[Path]:
-    """Write immutable Parquet files to the landing zone, split by year.
+    """Write immutable CSV files to the landing zone, split by year.
 
     Historical backfills produce one file per year. Incremental runs that
     span a single day produce a single dated file.
@@ -109,25 +114,27 @@ def save_landing_files(df: pd.DataFrame, landing_dir: Path, ticker_name: str) ->
     for year, group in df.groupby(df.index.year):
         if year == current_year:
             for day_date, day_group in group.groupby(group.index.date):
-                path = ticker_dir / f"{day_date}.parquet"
-                day_group.to_parquet(path)
+                path = ticker_dir / f"{day_date}.csv"
+                day_group.to_csv(path)
                 written.append(path)
         else:
-            path = ticker_dir / f"{year}.parquet"
-            group.to_parquet(path)
+            path = ticker_dir / f"{year}.csv"
+            group.to_csv(path)
             written.append(path)
 
     logger.info("Wrote %d landing file(s) for %s", len(written), ticker_name)
     return written
 
 
-def load_to_db(conn, df: pd.DataFrame, ticker_symbol: str) -> None:
-    """Add ticker column and insert rows into the futures_daily table.
+def flatten_df(df: pd.DataFrame, ticker_symbol: str) -> pd.DataFrame:
+    """Flatten a yfinance DataFrame into the format expected by the warehouse.
 
     Args:
-        conn: SQLite connection.
         df: DataFrame indexed by DatetimeIndex with OHLCV columns.
         ticker_symbol: Ticker value to populate the ticker column.
+
+    Returns:
+        DataFrame with columns: date, ticker, open, high, low, close, volume.
     """
     flat = df.reset_index()
     flat.columns = [c.lower() for c in flat.columns]
@@ -138,7 +145,7 @@ def load_to_db(conn, df: pd.DataFrame, ticker_symbol: str) -> None:
             flat = flat.rename(columns={date_col[0]: "date"})
     flat["date"] = pd.to_datetime(flat["date"]).dt.strftime("%Y-%m-%d")
     flat["ticker"] = ticker_symbol
-    db.insert_futures(conn, flat)
+    return flat
 
 
 def main():
@@ -152,6 +159,7 @@ def main():
     db.init_tables(conn)
 
     today = date.today()
+    val_cfg = cfg["validation"]
 
     for ticker in cfg["tickers"]:
         symbol = ticker["symbol"]
@@ -164,11 +172,20 @@ def main():
 
         df = download_ticker(symbol, start, today)
         save_landing_files(df, cfg["landing_dir"], name)
-        load_to_db(conn, df, symbol)
+
+        flat = flatten_df(df, symbol)
+        clean_df, issues = validate.validate_futures(flat, conn, val_cfg)
+
+        if issues:
+            db.log_validation(conn, issues)
+
+        if not clean_df.empty:
+            db.insert_futures(conn, clean_df)
 
         logger.info(
-            "%s (%s): loaded %d rows (%s to %s)",
-            name, symbol, len(df), df.index[0].date(), df.index[-1].date(),
+            "%s (%s): %d rows fetched, %d passed validation (%s to %s)",
+            name, symbol, len(flat), len(clean_df),
+            df.index[0].date(), df.index[-1].date(),
         )
 
     conn.close()

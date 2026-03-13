@@ -1,0 +1,59 @@
+validation:
+  anomaly_sigma: 3.0
+
+  futures:
+    checks:
+      - name: "null_check"
+        type: "generic"
+        severity: "error"
+        columns: ["open", "high", "low", "close", "volume"]
+      - name: "date_not_future"
+        type: "generic"
+        severity: "error"
+      - name: "high_gte_low"
+        type: "specific"
+        severity: "error"
+      - name: "close_within_range"
+        type: "specific"
+        severity: "warning"
+      - name: "positive_prices"
+        type: "generic"
+        severity: "error"
+        columns: ["open", "high", "low", "close"]
+      - name: "non_negative_volume"
+        type: "generic"
+        severity: "warning"
+        column: "volume"
+      - name: "stddev_close"
+        type: "generic"
+        severity: "warning"
+        column: "close"
+      - name: "stddev_volume"
+        type: "generic"
+        severity: "warning"
+        column: "volume"
+
+  weather:
+    checks:
+      - name: "null_check"
+        type: "generic"
+        severity: "error"
+        columns: ["temp_max_f", "temp_min_f", "precip_in"]
+      - name: "date_not_future"
+        type: "generic"
+        severity: "error"
+      - name: "temp_max_gte_min"
+        type: "specific"
+        severity: "error"
+      - name: "non_negative_precip"
+        type: "generic"
+        severity: "error"
+        column: "precip_in"
+      - name: "stddev_temp_max"
+        type: "generic"
+        severity: "warning"
+        column: "temp_max_f"
+      - name: "stddev_precip"
+        type: "generic"
+        severity: "warning"
+        column: "precip_in"

@@ -1,0 +1,117 @@
+momentum:
+  source_table: futures_daily
+  entity_column: ticker
+  entities:
+    - key: "ZC=F"
+      name: "corn"
+    - key: "ZS=F"
+      name: "soybeans"
+    - key: "ZW=F"
+      name: "wheat"
+  include_columns: []
+  max_lookback: 50
+  features:
+    - name: sma_20
+      function: sma
+      description: "20-day simple moving average of closing price (as of prior day)"
+      params: { window: 20, column: close }
+    - name: sma_50
+      function: sma
+      description: "50-day simple moving average of closing price"
+      params: { window: 50, column: close }
+    - name: ema_12
+      function: ema
+      description: "12-day exponential moving average of closing price"
+      params: { span: 12, column: close }
+    - name: ema_26
+      function: ema
+      description: "26-day exponential moving average of closing price"
+      params: { span: 26, column: close }
+    - name: macd
+      function: macd
+      description: "MACD line (12-day EMA minus 26-day EMA)"
+      params: { fast_span: 12, slow_span: 26 }
+    - name: macd_signal
+      function: macd_signal
+      description: "9-day EMA of the MACD line"
+      params: { fast_span: 12, slow_span: 26, signal_span: 9 }
+    - name: rsi_14
+      function: rsi
+      description: "14-day relative strength index (0-100)"
+      params: { window: 14, column: close }
+
+mean_reversion:
+  source_table: futures_daily
+  entity_column: ticker
+  entities:
+    - key: "ZC=F"
+      name: "corn"
+    - key: "ZS=F"
+      name: "soybeans"
+    - key: "ZW=F"
+      name: "wheat"
+  include_columns: []
+  max_lookback: 50
+  features:
+    - name: bollinger_upper
+      function: bollinger_upper
+      description: "Upper Bollinger Band (20-day SMA + 2 std dev)"
+      params: { window: 20, num_std: 2, column: close }
+    - name: bollinger_lower
+      function: bollinger_lower
+      description: "Lower Bollinger Band (20-day SMA - 2 std dev)"
+      params: { window: 20, num_std: 2, column: close }
+    - name: zscore_20
+      function: zscore
+      description: "20-day rolling z-score of closing price"
+      params: { window: 20, column: close }
+    - name: zscore_50
+      function: zscore
+      description: "50-day rolling z-score of closing price"
+      params: { window: 50, column: close }
+    - name: pct_rank_20
+      function: pct_rank
+      description: "20-day rolling percentile rank (0-1)"
+      params: { window: 20, column: close }
+
+weather:
+  source_table: weather_daily
+  entity_column: state
+  entities:
+    - key: "Iowa"
+      name: "iowa"
+    - key: "Illinois"
+      name: "illinois"
+    - key: "Nebraska"
+      name: "nebraska"
+  include_columns: []
+  max_lookback: 30
+  features:
+    - name: precip_7d
+      function: rolling_sum
+      description: "7-day rolling sum of precipitation (inches)"
+      params: { window: 7, column: precip_in }
+    - name: precip_30d
+      function: rolling_sum
+      description: "30-day rolling sum of precipitation (inches)"
+      params: { window: 30, column: precip_in }
+    - name: temp_max_7d
+      function: rolling_mean
+      description: "7-day rolling mean of daily max temperature (F)"
+      params: { window: 7, column: temp_max_f }
+    - name: temp_min_7d
+      function: rolling_mean
+      description: "7-day rolling mean of daily min temperature (F)"
+      params: { window: 7, column: temp_min_f }
+    - name: temp_range_7d
+      function: rolling_mean_diff
+      description: "7-day rolling mean of daily temperature range (max - min, F)"
+      params: { window: 7, col_a: temp_max_f, col_b: temp_min_f }
+    - name: precip_anomaly_30d
+      function: rolling_zscore
+      description: "30-day rolling z-score of precipitation (anomaly detection)"
+      params: { window: 30, column: precip_in }
+  aggregations:
+    - name: corn_belt
+      method: mean
+      source_entities: [iowa, illinois, nebraska]

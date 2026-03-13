@@ -10,7 +10,7 @@ The platform currently supports corn futures with Corn Belt precipitation data, 
 
 Data flows through four stages:
 
-1. **ETL scrapers** pull raw market data (Yahoo Finance) and weather data (Open-Meteo) into a SQLite warehouse, with immutable Parquet files as an audit trail.
+1. **ETL scrapers** pull raw market data (Yahoo Finance) and weather data (Open-Meteo) into a SQLite warehouse, with immutable CSV files as an audit trail.
 2. **Feature engineering** merges datasets, computes rolling/lagged features, and writes them to a feature store with metadata.
 3. **Strategies** consume features and produce a signal DataFrame (long/short/flat per day).
 4. **Backtest engine** takes signals, simulates trading with configurable costs and position sizing, and outputs P&L metrics.
@@ -28,13 +28,20 @@ crop_prediction/
     coding_guidelines.md       -- coding standards for all code changes
   etl/
     db.py                      -- SQLite manager (DB_PATH constant, tables, inserts, queries)
+    validate.py                -- validation orchestrator (runs checks, splits clean/rejected)
+    pipeline.yaml              -- validation thresholds and check config
+    run_pipeline.py            -- pipeline runner (--rebuild for full backfill)
+    checks/
+      generic.py               -- universal checks (nulls, std dev, dates, non-negative)
+      futures.py               -- futures-specific checks (high >= low, close in range)
+      weather.py               -- weather-specific checks (temp_max >= temp_min)
     scrapers/
       config.yaml              -- scraper config (tickers, API settings, landing dirs)
       yahoo_finance.py         -- Yahoo Finance multi-ticker futures OHLCV
       open_meteo.py            -- Open-Meteo daily temp/precip for Corn Belt
   warehouse/
-    raw.db                     -- SQLite database (source of truth)
-    landing/                   -- immutable Parquet files (audit trail)
+    warehouse.db               -- SQLite database (validated data only)
+    landing/                   -- immutable CSV files (raw, unvalidated audit trail)
   eda/
     signal_gen.py              -- feature engineering and signal generation
     backtest.py                -- backtesting engine (P&L, trade log, stats)
@@ -88,7 +95,7 @@ results, trade_log, stats = run_backtest(df)
 | Yahoo Finance | Futures OHLCV (corn ZC=F, soybeans ZS=F, wheat ZW=F) | 2010--present | Daily |
 | Open-Meteo | Temp (max/min) + precipitation | 2010--present | Daily |
 
-Weather data covers three Corn Belt states: Iowa, Illinois, and Nebraska. All tickers and locations are configured in `etl/scrapers/config.yaml`. Raw data is stored in a SQLite database (`warehouse/raw.db`) with immutable Parquet landing files as an audit trail.
+Weather data covers three Corn Belt states: Iowa, Illinois, and Nebraska. All tickers and locations are configured in `etl/scrapers/config.yaml`. Raw data is stored in immutable CSV landing files as an audit trail. Validated data is loaded into a SQLite database (`warehouse/warehouse.db`) after passing configurable checks (nulls, range, outlier detection).
 
 ## Tech Stack
 
