@@ -297,3 +297,136 @@ def return_distribution(backtest_df: pd.DataFrame, var_95: float) -> go.Figure:
         annotation_position="top left",
     )
     return _apply_layout(fig, "Daily P&L Distribution", "Count")
+
+
+def price_chart(df: pd.DataFrame, ticker_name: str) -> go.Figure:
+    """Candlestick chart with volume bars and a range slider for zooming.
+
+    Args:
+        df: OHLCV DataFrame with Open, High, Low, Close, Volume columns
+            and a datetime index.
+        ticker_name: Display name for the chart title.
+
+    Returns:
+        Plotly Figure.
+    """
+    from plotly.subplots import make_subplots
+
+    dates = _dates(df.index)
+
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+        row_heights=[0.75, 0.25],
+    )
+
+    # Candlestick
+    fig.add_trace(go.Candlestick(
+        x=dates,
+        open=df["Open"].tolist(),
+        high=df["High"].tolist(),
+        low=df["Low"].tolist(),
+        close=df["Close"].tolist(),
+        increasing_line_color="#22c55e",
+        decreasing_line_color="#ef4444",
+        increasing_fillcolor="#22c55e",
+        decreasing_fillcolor="#ef4444",
+        name="OHLC",
+    ), row=1, col=1)
+
+    # Volume bars
+    colors = [
+        "#22c55e" if c >= o else "#ef4444"
+        for o, c in zip(df["Open"].tolist(), df["Close"].tolist())
+    ]
+    fig.add_trace(go.Bar(
+        x=dates,
+        y=df["Volume"].tolist(),
+        marker_color=colors,
+        opacity=0.5,
+        name="Volume",
+        showlegend=False,
+    ), row=2, col=1)
+
+    fig.update_layout(
+        title=f"{ticker_name} -- OHLCV",
+        height=560,
+        xaxis_rangeslider_visible=False,
+        xaxis2_rangeslider_visible=True,
+        xaxis2_rangeslider_thickness=0.06,
+        showlegend=False,
+        **{k: v for k, v in LAYOUT_DEFAULTS.items() if k not in ("xaxis", "yaxis")},
+    )
+
+    for ax in ["xaxis", "xaxis2"]:
+        fig.update_layout(**{ax: dict(gridcolor=COLORS["grid"], zeroline=False)})
+    for ax in ["yaxis", "yaxis2"]:
+        fig.update_layout(**{ax: dict(gridcolor=COLORS["grid"], zeroline=False)})
+
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+
+    return fig
+
+
+def price_line_chart(df: pd.DataFrame, ticker_name: str, field: str) -> go.Figure:
+    """Single-series line chart for one OHLCV field with range slider.
+
+    Args:
+        df: OHLCV DataFrame with datetime index.
+        ticker_name: Display name for the title.
+        field: Column name to plot (Open, High, Low, Close, Volume).
+
+    Returns:
+        Plotly Figure.
+    """
+    dates = _dates(df.index)
+    values = df[field].tolist()
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=dates, y=values,
+        mode="lines", name=field,
+        line=dict(color=COLORS["equity"], width=1.5),
+    ))
+
+    fig.update_layout(
+        xaxis_rangeslider_visible=True,
+        xaxis_rangeslider_thickness=0.06,
+    )
+
+    yaxis_title = "Volume" if field == "Volume" else "Price"
+    return _apply_layout(fig, f"{ticker_name} -- {field}", yaxis_title, height=480)
+
+
+def feature_line_chart(
+    df: pd.DataFrame, feature: str, entity: str, category: str
+) -> go.Figure:
+    """Line chart for a single feature time series with range slider.
+
+    Args:
+        df: DataFrame with date column and the feature column.
+        feature: Feature column name to plot.
+        entity: Entity name (e.g. 'corn', 'corn_belt') for title.
+        category: Category name for title.
+
+    Returns:
+        Plotly Figure.
+    """
+    clean = df.dropna(subset=[feature])
+    dates = _dates(pd.to_datetime(clean["date"]))
+    values = clean[feature].tolist()
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=dates, y=values,
+        mode="lines", name=feature,
+        line=dict(color=COLORS["equity"], width=1.5),
+    ))
+
+    fig.update_layout(
+        xaxis_rangeslider_visible=True,
+        xaxis_rangeslider_thickness=0.06,
+    )
+
+    title = f"{entity.replace('_', ' ').title()} -- {feature}"
+    return _apply_layout(fig, title, feature, height=480)
