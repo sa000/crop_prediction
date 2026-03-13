@@ -170,3 +170,97 @@ def log_validation(conn: sqlite3.Connection, issues: list[dict]) -> int:
     conn.commit()
     logger.info("Logged %d validation issues", len(rows))
     return len(rows)
+
+
+def source_summary(table: str, entity_col: str, entity_val: str) -> dict:
+    """Return summary statistics for a raw data source entity.
+
+    Queries the warehouse database for date range, row count, and per-column
+    null percentages.
+
+    Args:
+        table: Table name (futures_daily or weather_daily).
+        entity_col: Column to filter on (e.g. 'ticker' or 'state').
+        entity_val: Value to filter for (e.g. 'ZC=F' or 'Iowa').
+
+    Returns:
+        Dict with keys: min_date, max_date, row_count, null_pct (dict of
+        column -> null percentage).
+    """
+    conn = get_connection()
+
+    # Date range and row count
+    cursor = conn.execute(
+        f"SELECT MIN(date), MAX(date), COUNT(*) FROM {table} "  # noqa: S608
+        f"WHERE {entity_col} = ?",
+        (entity_val,),
+    )
+    min_date, max_date, row_count = cursor.fetchone()
+
+    # Per-column null percentages
+    cursor = conn.execute(f"PRAGMA table_info({table})")
+    columns = [row[1] for row in cursor.fetchall()
+               if row[1] not in ("date", entity_col)]
+
+    null_pct = {}
+    for col in columns:
+        cursor = conn.execute(
+            f"SELECT ROUND(100.0 * SUM(CASE WHEN {col} IS NULL THEN 1 ELSE 0 END) "  # noqa: S608
+            f"/ COUNT(*), 2) FROM {table} WHERE {entity_col} = ?",
+            (entity_val,),
+        )
+        null_pct[col] = cursor.fetchone()[0] or 0.0
+
+    conn.close()
+    return {
+        "min_date": min_date,
+        "max_date": max_date,
+        "row_count": row_count,
+        "null_pct": null_pct,
+    }
+
+
+def load_raw_data(table: str, entity_col: str, entity_val: str) -> pd.DataFrame:
+    """Load raw data for a given table and entity.
+
+    Args:
+        table: Table name (futures_daily or weather_daily).
+        entity_col: Column to filter on (e.g. 'ticker' or 'state').
+        entity_val: Value to filter for (e.g. 'ZC=F' or 'Iowa').
+
+    Returns:
+        DataFrame with all columns, indexed by date.
+    """
+    conn = get_connection()
+    df = pd.read_sql(
+        f"SELECT * FROM {table} WHERE {entity_col} = ? ORDER BY date",  # noqa: S608
+        conn,
+        params=(entity_val,),
+        parse_dates=["date"],
+    )
+    conn.close()
+    return df
+
+
+def load_prices(ticker: str = "ZC=F") -> pd.DataFrame:
+    """Load OHLCV price data for a ticker.
+
+    Args:
+        ticker: Yahoo Finance ticker symbol (default: ZC=F for corn).
+
+    Returns:
+        DataFrame indexed by date with Open, High, Low, Close, Volume columns.
+    """
+    conn = get_connection()
+    df = pd.read_sql(
+        "SELECT date, open, high, low, close, volume "
+        "FROM futures_daily WHERE ticker = ? ORDER BY date",
+        conn,
+        params=(ticker,),
+        parse_dates=["date"],
+        index_col="date",
+    )
+    conn.close()
+    df.columns = [c.capitalize() for c in df.columns]
+    df.sort_index(inplace=True)
+    return df

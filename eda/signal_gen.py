@@ -14,33 +14,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from etl import db
+from etl.db import load_prices
 
 logger = logging.getLogger(__name__)
 
 PRECIP_COLS = ["Iowa_precip_in", "Illinois_precip_in", "Nebraska_precip_in"]
 ROLLING_WINDOW = 30
 LAG_DAYS = 1
-
-
-def load_futures() -> pd.DataFrame:
-    """Load corn futures OHLCV data from the SQLite warehouse.
-
-    Returns:
-        DataFrame indexed by date with Open, High, Low, Close, Volume columns.
-    """
-    conn = db.get_connection()
-    df = pd.read_sql(
-        "SELECT date, open, high, low, close, volume "
-        "FROM futures_daily WHERE ticker = 'ZC=F' ORDER BY date",
-        conn,
-        parse_dates=["date"],
-        index_col="date",
-    )
-    conn.close()
-    df.columns = [c.capitalize() for c in df.columns]
-    df.sort_index(inplace=True)
-    logger.info("Loaded futures: %d rows (%s to %s)", len(df), df.index[0].date(), df.index[-1].date())
-    return df
 
 
 def load_weather() -> pd.DataFrame:
@@ -166,7 +146,7 @@ def build_signal_dataframe(threshold_long: float, threshold_short: float,
     Returns:
         Complete DataFrame with OHLCV, weather, features, and signal columns.
     """
-    futures = load_futures()
+    futures = load_prices()
     weather = load_weather()
     df = merge_on_trading_days(futures, weather)
     df = add_avg_precip(df)

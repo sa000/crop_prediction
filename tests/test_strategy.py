@@ -72,6 +72,44 @@ class TestBacktestOutput:
             assert set(trade_log["direction"].unique()).issubset({"long", "short"})
 
 
+class TestSMACrossoverSignal:
+    """Verify the SMA crossover generate_signal contract."""
+
+    def test_signal_column_exists(self, sma_backtest_result):
+        """Output has a signal column."""
+        result_df, _, _ = sma_backtest_result
+        assert "signal" in result_df.columns
+
+    def test_signal_values(self, sma_backtest_result):
+        """Signal values are only in {-1, 0, 1}."""
+        result_df, _, _ = sma_backtest_result
+        assert set(result_df["signal"].unique()).issubset({-1, 0, 1})
+
+    def test_signal_no_nan(self, sma_backtest_result):
+        """No NaN in the signal column."""
+        result_df, _, _ = sma_backtest_result
+        assert result_df["signal"].notna().all()
+
+
+class TestMomentumRSISignal:
+    """Verify the momentum RSI generate_signal contract."""
+
+    def test_signal_column_exists(self, rsi_backtest_result):
+        """Output has a signal column."""
+        result_df, _, _ = rsi_backtest_result
+        assert "signal" in result_df.columns
+
+    def test_signal_values(self, rsi_backtest_result):
+        """Signal values are only in {-1, 0, 1}."""
+        result_df, _, _ = rsi_backtest_result
+        assert set(result_df["signal"].unique()).issubset({-1, 0, 1})
+
+    def test_signal_no_nan(self, rsi_backtest_result):
+        """No NaN in the signal column."""
+        result_df, _, _ = rsi_backtest_result
+        assert result_df["signal"].notna().all()
+
+
 class TestAnalytics:
     """Verify analytics functions used for dashboard visualization."""
 

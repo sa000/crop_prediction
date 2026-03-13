@@ -66,8 +66,12 @@ def get_strategy_metadata(module: ModuleType) -> dict:
 
     parameters = {}
     for name, value in vars(module).items():
+        if name == "SUMMARY":
+            continue
         if name.isupper() and not name.startswith("_"):
             if isinstance(value, (int, float, str, bool)):
                 parameters[name] = value
 
-    return {"description": description, "parameters": parameters}
+    summary = getattr(module, "SUMMARY", "")
+    features_config = getattr(module, "FEATURES", None)
+    return {"description": description, "summary": summary, "parameters": parameters, "features": features_config}

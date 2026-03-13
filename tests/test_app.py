@@ -27,6 +27,12 @@ class TestDiscovery:
                 f"{name} missing callable generate_signal"
             )
 
+    def test_discover_includes_new_strategies(self):
+        """Sma Crossover and Momentum Rsi are discovered."""
+        strategies = discover_strategies()
+        assert "Sma Crossover" in strategies
+        assert "Momentum Rsi" in strategies
+
     def test_strategy_metadata(self):
         """get_strategy_metadata returns dict with description, summary, parameters."""
         strategies = discover_strategies()
@@ -36,6 +42,13 @@ class TestDiscovery:
             assert "description" in meta
             assert "summary" in meta
             assert "parameters" in meta
+
+    def test_strategy_features_metadata(self):
+        """Every strategy's metadata has a features key."""
+        strategies = discover_strategies()
+        for name, module in strategies.items():
+            meta = get_strategy_metadata(module)
+            assert "features" in meta
 
 
 class TestCharts:

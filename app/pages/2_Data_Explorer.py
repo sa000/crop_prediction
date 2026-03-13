@@ -1,4 +1,8 @@
-"""Data Explorer -- browse price, weather, and feature data."""
+"""Data Explorer -- browse engineered features and raw data sources.
+
+Two tabs: Features (browse and analyze engineered features with stats,
+seasonality, and distributions) and Data Catalog (raw data source
+inventory with quality metrics and exploration)."""
 
 import sys
 from pathlib import Path
@@ -6,14 +10,15 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import catalog_agent, charts
-from app.style import inject_css, sidebar_logo, BG_CARD
-from etl import db
+from app.style import inject_css, sidebar_logo, BG_CARD, TEXT_MUTED, TEXT_PRIMARY, BORDER
+from etl.db import load_raw_data, source_summary
 from features import query as fquery
 from features import store
 
@@ -47,26 +52,24 @@ def show_chart(fig, height=580):
     components.html(wrapper, height=height, scrolling=False)
 
 
-def load_ticker(symbol: str) -> pd.DataFrame:
-    """Load OHLCV data for a ticker from the warehouse."""
-    conn = db.get_connection()
-    df = pd.read_sql(
-        "SELECT date, open, high, low, close, volume "
-        "FROM futures_daily WHERE ticker = ? ORDER BY date",
-        conn,
-        params=(symbol,),
-        parse_dates=["date"],
-        index_col="date",
-    )
-    conn.close()
-    df.columns = [c.capitalize() for c in df.columns]
-    return df
-
-
 @st.cache_data(ttl=300)
 def load_registry():
     """Load and cache the feature registry."""
     return fquery.load_registry()
+
+
+@st.cache_data(ttl=300)
+def load_scraper_config():
+    """Load scraper config for data source metadata."""
+    config_path = PROJECT_ROOT / "etl" / "scrapers" / "config.yaml"
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+
+@st.cache_data(ttl=300)
+def get_source_stats(table, entity_col, entity_val):
+    """Cached wrapper for source_summary."""
+    return source_summary(table, entity_col, entity_val)
 
 
 def get_entities_for_category(registry: dict, category: str) -> list[str]:
@@ -89,37 +92,107 @@ def get_feature_description(registry: dict, feature_name: str) -> str:
     return ""
 
 
+def get_feature_metadata(feature_name: str, category: str, entity: str) -> dict:
+    """Look up a feature's metadata from metadata.parquet.
+
+    Args:
+        feature_name: Feature name.
+        category: Feature category.
+        entity: Entity name.
+
+    Returns:
+        Dict with stat_mean, stat_std, stat_min, stat_max, null_pct,
+        freshness, available_from, source_table. Empty dict if not found.
+    """
+    metadata = store.read_metadata()
+    if metadata.empty:
+        return {}
+    match = metadata[
+        (metadata["name"] == feature_name)
+        & (metadata["category"] == category)
+        & (metadata["entity"] == entity)
+    ]
+    if match.empty:
+        return {}
+    return match.iloc[0].to_dict()
+
+
+def render_feature_stats(feat_df, feature, meta):
+    """Render summary stats card, seasonality chart, and histogram for a feature."""
+    values = feat_df[feature].dropna()
+    if values.empty:
+        return
+
+    # Compute skew and kurtosis on the fly
+    skew = values.skew()
+    kurtosis = values.kurtosis()
+
+    # Pull pre-computed stats from metadata, fall back to computed
+    mean_val = meta.get("stat_mean", values.mean())
+    std_val = meta.get("stat_std", values.std())
+    null_pct = meta.get("null_pct", 0.0)
+    freshness = meta.get("freshness", "N/A")
+    available_from = meta.get("available_from", "N/A")
+    source_table = meta.get("source_table", "N/A")
+
+    # Stats card
+    st.markdown(
+        f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem; margin-top: 1rem;">'
+        f'Source: {source_table} &nbsp;|&nbsp; '
+        f'Latest: {freshness} &nbsp;|&nbsp; '
+        f'Available from: {available_from}</p>',
+        unsafe_allow_html=True,
+    )
+
+    cols = st.columns(6)
+    cols[0].metric("Mean", f"{mean_val:.4f}")
+    cols[1].metric("Std Dev", f"{std_val:.4f}")
+    cols[2].metric("Skew", f"{skew:.3f}")
+    cols[3].metric("Kurtosis", f"{kurtosis:.3f}")
+    cols[4].metric("Null %", f"{null_pct:.1f}%")
+    cols[5].metric("Observations", f"{len(values):,}")
+
+    # Seasonality and distribution side by side
+    col_season, col_dist = st.columns(2)
+
+    with col_season:
+        entity_label = feature.replace("_", " ").title()
+        show_chart(
+            charts.seasonality_chart(
+                feat_df, "date", feature,
+                f"Seasonality -- {entity_label}",
+            ),
+            height=420,
+        )
+
+    with col_dist:
+        show_chart(
+            charts.distribution_chart(
+                values,
+                f"Distribution -- {feature}",
+                mean_val,
+                std_val,
+            ),
+            height=420,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Page header
+# ---------------------------------------------------------------------------
+
 st.markdown(
     '<h1 style="font-weight: 600; font-size: 1.8rem; color: #e2e8f0;">'
     'Data Explorer</h1>',
     unsafe_allow_html=True,
 )
 
-tab_price, tab_features = st.tabs(["Price Data", "Feature Explorer"])
+tab_features, tab_catalog = st.tabs(["Features", "Data Catalog"])
 
-VIEWS = ["Candlestick (All)", "Open", "High", "Low", "Close", "Volume"]
 
-with tab_price:
-    col_ticker, col_view = st.columns([1, 2])
-    with col_ticker:
-        ticker_name = st.selectbox("Ticker", list(TICKER_MAP.keys()), key="price_ticker")
-    with col_view:
-        view = st.selectbox("View", VIEWS, key="price_view")
-
-    symbol = TICKER_MAP[ticker_name]
-    df = load_ticker(symbol)
-
-    st.markdown(
-        f'<p style="color: #64748b; font-size: 0.85rem;">'
-        f'{len(df):,} trading days &nbsp;&bull;&nbsp; '
-        f'{df.index[0].date()} to {df.index[-1].date()}</p>',
-        unsafe_allow_html=True,
-    )
-
-    if view == "Candlestick (All)":
-        show_chart(charts.price_chart(df, ticker_name), height=600)
-    else:
-        show_chart(charts.price_line_chart(df, ticker_name, view), height=520)
+# ===========================================================================
+# TAB 1: FEATURES
+# ===========================================================================
 
 with tab_features:
     registry = load_registry()
@@ -180,7 +253,6 @@ with tab_features:
                         sel = results_df.iloc[selected_rows[0]]
                         sel_name = sel.get("name", "")
 
-                        # Normalize category from model output to file path
                         raw_cat = sel.get("category", "").lower()
                         raw_cat = raw_cat.replace(" features", "")
                         sel_cat = raw_cat.replace(" ", "_")
@@ -199,6 +271,10 @@ with tab_features:
                                     ),
                                     height=520,
                                 )
+                                meta = get_feature_metadata(
+                                    sel_name, sel_cat, sel_entity
+                                )
+                                render_feature_stats(sel_df, sel_name, meta)
                             else:
                                 st.warning(
                                     f"No data for {sel_cat}/{sel_entity}/{sel_name}."
@@ -267,3 +343,190 @@ with tab_features:
             charts.feature_line_chart(feat_df, feature, entity, category),
             height=520,
         )
+
+        # Summary stats, seasonality, distribution
+        meta = get_feature_metadata(feature, category, entity)
+        render_feature_stats(feat_df, feature, meta)
+
+
+# ===========================================================================
+# TAB 2: DATA CATALOG
+# ===========================================================================
+
+with tab_catalog:
+    config = load_scraper_config()
+    registry = load_registry()
+
+    st.markdown(
+        f'<p style="color: {TEXT_MUTED}; font-size: 0.85rem; margin-bottom: 1.5rem;">'
+        f'Raw data sources ingested into the warehouse</p>',
+        unsafe_allow_html=True,
+    )
+
+    # --- Futures ---
+    st.markdown("### Futures (Yahoo Finance)")
+
+    futures_tickers = config.get("yahoo_finance", {}).get("tickers", [])
+    ticker_feature_map = registry.get("ticker_feature_map", {})
+
+    for ticker_info in futures_tickers:
+        symbol = ticker_info["symbol"]
+        name = ticker_info["name"]
+        stats = get_source_stats("futures_daily", "ticker", symbol)
+
+        derived = []
+        for cat, feats in ticker_feature_map.get(name, {}).items():
+            derived.extend(feats)
+
+        with st.expander(f"{name.title()} ({symbol})", expanded=False):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Rows", f"{stats['row_count']:,}")
+            c2.metric("From", stats["min_date"] or "N/A")
+            c3.metric("To", stats["max_date"] or "N/A")
+            c4.metric("Source", "Yahoo Finance")
+
+            # Null percentages
+            null_data = stats["null_pct"]
+            if null_data:
+                null_cols = st.columns(len(null_data))
+                for col_widget, (col_name, pct) in zip(null_cols, null_data.items()):
+                    color = "#22c55e" if pct == 0 else "#ef4444"
+                    col_widget.markdown(
+                        f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem;">'
+                        f'{col_name}</p>'
+                        f'<p style="color: {color}; font-size: 0.9rem; '
+                        f'font-weight: 600;">{pct:.1f}% null</p>',
+                        unsafe_allow_html=True,
+                    )
+
+            # Derived features
+            if derived:
+                st.markdown(
+                    f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem; '
+                    f'margin-top: 0.5rem;">Derived features: '
+                    f'{", ".join(derived)}</p>',
+                    unsafe_allow_html=True,
+                )
+
+    # --- Weather ---
+    st.markdown("### Weather (Open-Meteo)")
+
+    weather_locations = config.get("open_meteo", {}).get("locations", [])
+    unlinked = registry.get("unlinked_features", {}).get("weather", {})
+
+    for loc in weather_locations:
+        state = loc["state"]
+        state_key = state.lower()
+        stats = get_source_stats("weather_daily", "state", state)
+
+        derived = unlinked.get(state_key, [])
+
+        with st.expander(
+            f"{state} ({loc['lat']}, {loc['lon']})", expanded=False
+        ):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Rows", f"{stats['row_count']:,}")
+            c2.metric("From", stats["min_date"] or "N/A")
+            c3.metric("To", stats["max_date"] or "N/A")
+            c4.metric("Source", "Open-Meteo")
+
+            # Null percentages
+            null_data = stats["null_pct"]
+            if null_data:
+                null_cols = st.columns(len(null_data))
+                for col_widget, (col_name, pct) in zip(null_cols, null_data.items()):
+                    color = "#22c55e" if pct == 0 else "#ef4444"
+                    col_widget.markdown(
+                        f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem;">'
+                        f'{col_name}</p>'
+                        f'<p style="color: {color}; font-size: 0.9rem; '
+                        f'font-weight: 600;">{pct:.1f}% null</p>',
+                        unsafe_allow_html=True,
+                    )
+
+            if derived:
+                st.markdown(
+                    f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem; '
+                    f'margin-top: 0.5rem;">Derived features: '
+                    f'{", ".join(derived)}</p>',
+                    unsafe_allow_html=True,
+                )
+
+    # --- Raw Data Exploration ---
+    st.divider()
+    st.markdown("### Explore Raw Data")
+
+    col_src, col_ent, col_field = st.columns(3)
+
+    with col_src:
+        source_type = st.selectbox(
+            "Source",
+            ["Futures", "Weather"],
+            key="catalog_source",
+        )
+
+    if source_type == "Futures":
+        entity_options = {t["name"].title(): t for t in futures_tickers}
+        table = "futures_daily"
+        entity_col = "ticker"
+    else:
+        entity_options = {loc["state"]: loc for loc in weather_locations}
+        table = "weather_daily"
+        entity_col = "state"
+
+    with col_ent:
+        entity_name = st.selectbox(
+            "Entity",
+            list(entity_options.keys()),
+            key="catalog_entity",
+        )
+
+    entity_info = entity_options[entity_name]
+
+    if source_type == "Futures":
+        entity_val = entity_info["symbol"]
+        data_columns = ["open", "high", "low", "close", "volume"]
+    else:
+        entity_val = entity_info["state"]
+        data_columns = ["temp_max_f", "temp_min_f", "precip_in"]
+
+    with col_field:
+        field = st.selectbox("Column", data_columns, key="catalog_field")
+
+    raw_df = load_raw_data(table, entity_col, entity_val)
+
+    if raw_df.empty:
+        st.warning(f"No data for {entity_name}.")
+    else:
+        values = raw_df[field].dropna()
+        mean_val = values.mean()
+        std_val = values.std()
+
+        st.markdown(
+            f'<p style="color: {TEXT_MUTED}; font-size: 0.85rem;">'
+            f'{len(values):,} data points &nbsp;&bull;&nbsp; '
+            f'{raw_df["date"].min().date()} to {raw_df["date"].max().date()}</p>',
+            unsafe_allow_html=True,
+        )
+
+        col_season, col_dist = st.columns(2)
+
+        with col_season:
+            show_chart(
+                charts.seasonality_chart(
+                    raw_df, "date", field,
+                    f"Seasonality -- {entity_name} {field}",
+                ),
+                height=420,
+            )
+
+        with col_dist:
+            show_chart(
+                charts.distribution_chart(
+                    values,
+                    f"Distribution -- {entity_name} {field}",
+                    mean_val,
+                    std_val,
+                ),
+                height=420,
+            )

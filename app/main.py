@@ -15,7 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.style import inject_css, sidebar_logo
 
 st.set_page_config(
-    page_title="Trex Quant -- Crop Yield Trading",
+    page_title="Trexquant",
+    page_icon=str(PROJECT_ROOT / "trexquant_logo.png"),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -68,8 +69,8 @@ with col2:
                 Data Explorer
             </h3>
             <p style="color: #94a3b8; font-size: 0.9rem; line-height: 1.5;">
-                Browse price data, weather data, and engineered features
-                from the feature store.
+                Browse engineered features with stats, seasonality, and
+                distributions. Explore raw data sources and quality metrics.
             </p>
         </div>
         """,

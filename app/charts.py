@@ -430,3 +430,99 @@ def feature_line_chart(
 
     title = f"{entity.replace('_', ' ').title()} -- {feature}"
     return _apply_layout(fig, title, feature, height=480)
+
+
+def seasonality_chart(
+    df: pd.DataFrame, date_col: str, value_col: str, title: str
+) -> go.Figure:
+    """Bar chart of average value by calendar month.
+
+    Groups data by month across all years and shows the mean value per month,
+    useful for spotting seasonal patterns in agricultural data.
+
+    Args:
+        df: DataFrame with a date column and a numeric value column.
+        date_col: Name of the date column.
+        value_col: Name of the numeric column to aggregate.
+        title: Chart title.
+
+    Returns:
+        Plotly Figure.
+    """
+    tmp = df[[date_col, value_col]].dropna(subset=[value_col]).copy()
+    tmp[date_col] = pd.to_datetime(tmp[date_col])
+    tmp["month"] = tmp[date_col].dt.month
+
+    monthly = tmp.groupby("month")[value_col].agg(["mean", "min", "max"])
+    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    # Reindex to ensure all 12 months are present
+    monthly = monthly.reindex(range(1, 13))
+    labels = [month_labels[i - 1] for i in monthly.index]
+
+    fig = go.Figure()
+
+    # Min-max range band
+    fig.add_trace(go.Scatter(
+        x=labels, y=monthly["max"].tolist(),
+        mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=labels, y=monthly["min"].tolist(),
+        mode="lines", line=dict(width=0), fill="tonexty",
+        fillcolor="rgba(59, 130, 246, 0.1)",
+        showlegend=False, hoverinfo="skip",
+    ))
+
+    # Mean bars
+    fig.add_trace(go.Bar(
+        x=labels, y=monthly["mean"].tolist(),
+        marker_color=COLORS["equity"], opacity=0.85,
+        name="Monthly Avg",
+    ))
+
+    return _apply_layout(fig, title, value_col, height=380)
+
+
+def distribution_chart(
+    values: pd.Series, title: str, mean_val: float, std_val: float
+) -> go.Figure:
+    """Histogram of values with vertical lines at mean and +/- 1 std dev.
+
+    Args:
+        values: Numeric Series to plot.
+        title: Chart title.
+        mean_val: Mean value for reference line.
+        std_val: Standard deviation for reference lines.
+
+    Returns:
+        Plotly Figure.
+    """
+    clean = values.dropna().tolist()
+
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=clean, nbinsx=50, name="Distribution",
+        marker_color=COLORS["histogram"], opacity=0.75,
+    ))
+
+    # Mean line
+    fig.add_vline(
+        x=mean_val, line_dash="solid", line_color="#22c55e", line_width=2,
+        annotation_text=f"Mean: {mean_val:.2f}",
+        annotation_position="top right",
+        annotation_font_color="#22c55e",
+    )
+
+    # +/- 1 std dev lines
+    for sign, label in [(1, "+1 SD"), (-1, "-1 SD")]:
+        fig.add_vline(
+            x=mean_val + sign * std_val,
+            line_dash="dash", line_color=COLORS["reference"], line_width=1,
+            annotation_text=label,
+            annotation_position="top left" if sign == -1 else "top right",
+            annotation_font_color=COLORS["text"],
+        )
+
+    return _apply_layout(fig, title, "Count", height=380)
