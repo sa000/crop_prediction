@@ -105,3 +105,10 @@ crop_prediction/
 - Default allocation: $100M (user-configurable).
 - Transaction cost: default 0% (user-configurable).
 - Position sizing: default binary all-in (optional 1-2% risk per trade toggle).
+
+### Testing
+- Run `python -m pytest tests/ -v` after every code change to verify nothing is broken.
+- Tests use the REAL warehouse.db and Parquet files. Do not mock data layer functions.
+- Tests must pass before committing. If a test fails, fix the code, not the test (unless the test itself is wrong).
+- When adding new strategies or features that touch the critical data flow, add corresponding tests.
+- Test files live in `tests/` at the project root. Target: full suite under 30 seconds.

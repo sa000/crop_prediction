@@ -35,3 +35,10 @@ All code in this project must follow these standards.
 - Pin or document dependency versions where it matters.
 - Use seed values for any randomness.
 - File outputs should be deterministic given the same inputs and date range.
+
+## Testing
+- Use pytest. Run with `python -m pytest tests/ -v`.
+- Test the real data flow, not mocks. Tests read from warehouse.db and Parquet files.
+- Session-scoped fixtures in `conftest.py` load data once; individual tests assert shape, type, and invariants.
+- Three test files: `test_data_pipeline.py` (data layer), `test_strategy.py` (strategy + backtest), `test_app.py` (discovery + charts).
+- New strategies must expose `generate_signal` returning a DataFrame with a `signal` column containing only values in {+1, -1, 0}.
