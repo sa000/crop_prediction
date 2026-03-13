@@ -1,0 +1,378 @@
+generated_at: '2026-03-12T21:35:05'
+tickers:
+- symbol: ZC=F
+  name: corn
+  source: yahoo_finance
+  asset_class: agricultural_futures
+  description: CBOT Corn Futures continuous contract
+- symbol: ZS=F
+  name: soybeans
+  source: yahoo_finance
+  asset_class: agricultural_futures
+  description: CBOT Soybean Futures continuous contract
+- symbol: ZW=F
+  name: wheat
+  source: yahoo_finance
+  asset_class: agricultural_futures
+  description: CBOT Wheat Futures continuous contract
+features:
+- name: sma_20
+  category: momentum
+  source_table: futures_daily
+  description: 20-day simple moving average of closing price (as of prior day)
+  freshness: '2026-03-11'
+  available_from: '2010-02-02'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: sma_50
+  category: momentum
+  source_table: futures_daily
+  description: 50-day simple moving average of closing price
+  freshness: '2026-03-11'
+  available_from: '2010-03-17'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: ema_12
+  category: momentum
+  source_table: futures_daily
+  description: 12-day exponential moving average of closing price
+  freshness: '2026-03-11'
+  available_from: '2010-01-05'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: ema_26
+  category: momentum
+  source_table: futures_daily
+  description: 26-day exponential moving average of closing price
+  freshness: '2026-03-11'
+  available_from: '2010-01-05'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: macd
+  category: momentum
+  source_table: futures_daily
+  description: MACD line (12-day EMA minus 26-day EMA)
+  freshness: '2026-03-11'
+  available_from: '2010-01-05'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: macd_signal
+  category: momentum
+  source_table: futures_daily
+  description: 9-day EMA of the MACD line
+  freshness: '2026-03-11'
+  available_from: '2010-01-05'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: rsi_14
+  category: momentum
+  source_table: futures_daily
+  description: 14-day relative strength index (0-100)
+  freshness: '2026-03-11'
+  available_from: '2010-01-25'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: bollinger_upper
+  category: mean_reversion
+  source_table: futures_daily
+  description: Upper Bollinger Band (20-day SMA + 2 std dev)
+  freshness: '2026-03-11'
+  available_from: '2010-02-02'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: bollinger_lower
+  category: mean_reversion
+  source_table: futures_daily
+  description: Lower Bollinger Band (20-day SMA - 2 std dev)
+  freshness: '2026-03-11'
+  available_from: '2010-02-02'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: zscore_20
+  category: mean_reversion
+  source_table: futures_daily
+  description: 20-day rolling z-score of closing price
+  freshness: '2026-03-11'
+  available_from: '2010-02-02'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: zscore_50
+  category: mean_reversion
+  source_table: futures_daily
+  description: 50-day rolling z-score of closing price
+  freshness: '2026-03-11'
+  available_from: '2010-03-17'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: pct_rank_20
+  category: mean_reversion
+  source_table: futures_daily
+  description: 20-day rolling percentile rank (0-1)
+  freshness: '2026-03-11'
+  available_from: '2010-02-02'
+  frequency: daily
+  tickers:
+  - corn
+  - soybeans
+  - wheat
+- name: precip_7d
+  category: weather
+  source_table: weather_daily
+  description: 7-day rolling sum of precipitation (inches)
+  freshness: '2026-03-10'
+  available_from: '2010-01-08'
+  frequency: daily
+  tickers: []
+  states:
+  - iowa
+  - illinois
+  - nebraska
+  - corn_belt
+- name: precip_30d
+  category: weather
+  source_table: weather_daily
+  description: 30-day rolling sum of precipitation (inches)
+  freshness: '2026-03-10'
+  available_from: '2010-01-31'
+  frequency: daily
+  tickers: []
+  states:
+  - iowa
+  - illinois
+  - nebraska
+  - corn_belt
+- name: temp_max_7d
+  category: weather
+  source_table: weather_daily
+  description: 7-day rolling mean of daily max temperature (F)
+  freshness: '2026-03-10'
+  available_from: '2010-01-08'
+  frequency: daily
+  tickers: []
+  states:
+  - iowa
+  - illinois
+  - nebraska
+  - corn_belt
+- name: temp_min_7d
+  category: weather
+  source_table: weather_daily
+  description: 7-day rolling mean of daily min temperature (F)
+  freshness: '2026-03-10'
+  available_from: '2010-01-08'
+  frequency: daily
+  tickers: []
+  states:
+  - iowa
+  - illinois
+  - nebraska
+  - corn_belt
+- name: temp_range_7d
+  category: weather
+  source_table: weather_daily
+  description: 7-day rolling mean of daily temperature range (max - min, F)
+  freshness: '2026-03-10'
+  available_from: '2010-01-08'
+  frequency: daily
+  tickers: []
+  states:
+  - iowa
+  - illinois
+  - nebraska
+  - corn_belt
+- name: precip_anomaly_30d
+  category: weather
+  source_table: weather_daily
+  description: 30-day rolling z-score of precipitation (anomaly detection)
+  freshness: '2026-03-10'
+  available_from: '2010-01-31'
+  frequency: daily
+  tickers: []
+  states:
+  - iowa
+  - illinois
+  - nebraska
+  - corn_belt
+ticker_feature_map:
+  corn:
+    momentum:
+    - sma_20
+    - sma_50
+    - ema_12
+    - ema_26
+    - macd
+    - macd_signal
+    - rsi_14
+    mean_reversion:
+    - bollinger_upper
+    - bollinger_lower
+    - zscore_20
+    - zscore_50
+    - pct_rank_20
+  soybeans:
+    momentum:
+    - sma_20
+    - sma_50
+    - ema_12
+    - ema_26
+    - macd
+    - macd_signal
+    - rsi_14
+    mean_reversion:
+    - bollinger_upper
+    - bollinger_lower
+    - zscore_20
+    - zscore_50
+    - pct_rank_20
+  wheat:
+    momentum:
+    - sma_20
+    - sma_50
+    - ema_12
+    - ema_26
+    - macd
+    - macd_signal
+    - rsi_14
+    mean_reversion:
+    - bollinger_upper
+    - bollinger_lower
+    - zscore_20
+    - zscore_50
+    - pct_rank_20
+unlinked_features:
+  weather:
+    iowa:
+    - precip_7d
+    - precip_30d
+    - temp_max_7d
+    - temp_min_7d
+    - temp_range_7d
+    - precip_anomaly_30d
+    illinois:
+    - precip_7d
+    - precip_30d
+    - temp_max_7d
+    - temp_min_7d
+    - temp_range_7d
+    - precip_anomaly_30d
+    nebraska:
+    - precip_7d
+    - precip_30d
+    - temp_max_7d
+    - temp_min_7d
+    - temp_range_7d
+    - precip_anomaly_30d
+    corn_belt:
+    - precip_7d
+    - precip_30d
+    - temp_max_7d
+    - temp_min_7d
+    - temp_range_7d
+    - precip_anomaly_30d
+files:
+  momentum:
+    corn:
+      path: features/momentum/corn.parquet
+      date_range:
+      - '2010-01-04'
+      - '2026-03-11'
+      row_count: 4068
+      entity_key: ZC=F
+    soybeans:
+      path: features/momentum/soybeans.parquet
+      date_range:
+      - '2010-01-04'
+      - '2026-03-11'
+      row_count: 4070
+      entity_key: ZS=F
+    wheat:
+      path: features/momentum/wheat.parquet
+      date_range:
+      - '2010-01-04'
+      - '2026-03-11'
+      row_count: 4070
+      entity_key: ZW=F
+  mean_reversion:
+    corn:
+      path: features/mean_reversion/corn.parquet
+      date_range:
+      - '2010-01-04'
+      - '2026-03-11'
+      row_count: 4068
+      entity_key: ZC=F
+    soybeans:
+      path: features/mean_reversion/soybeans.parquet
+      date_range:
+      - '2010-01-04'
+      - '2026-03-11'
+      row_count: 4070
+      entity_key: ZS=F
+    wheat:
+      path: features/mean_reversion/wheat.parquet
+      date_range:
+      - '2010-01-04'
+      - '2026-03-11'
+      row_count: 4070
+      entity_key: ZW=F
+  weather:
+    iowa:
+      path: features/weather/iowa.parquet
+      date_range:
+      - '2010-01-01'
+      - '2026-03-10'
+      row_count: 5913
+      entity_key: Iowa
+    illinois:
+      path: features/weather/illinois.parquet
+      date_range:
+      - '2010-01-01'
+      - '2026-03-10'
+      row_count: 5913
+      entity_key: Illinois
+    nebraska:
+      path: features/weather/nebraska.parquet
+      date_range:
+      - '2010-01-01'
+      - '2026-03-10'
+      row_count: 5913
+      entity_key: Nebraska
+    corn_belt:
+      path: features/weather/corn_belt.parquet
+      date_range:
+      - '2010-01-01'
+      - '2026-03-10'
+      row_count: 5913
+      entity_key: corn_belt
