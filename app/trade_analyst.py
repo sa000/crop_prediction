@@ -27,12 +27,14 @@ FORMAT RULES (follow exactly):
 Jump straight into the analysis.
 - Write 2-4 sentences explaining the key price drivers. Include specific numbers \
 (e.g. "rainfall was 40% below the 30-year average", "USDA cut yield estimates by \
-3.2 bushels/acre", "exports surged 18% month-over-month"). Cite sources inline as \
-markdown links [Source Title](url) right where the claim appears -- do NOT collect \
-sources at the end.
+3.2 bushels/acre", "exports surged 18% month-over-month").
+- CRITICAL: Every factual claim MUST have an inline source citation as a markdown link \
+immediately after the claim, like: "USDA cut yield estimates by 3.2 bu/acre \
+([USDA WASDE Report](url))." Do NOT list sources at the end -- weave them into \
+the sentences as evidence. If you cannot find a source for a claim, do not make it.
 - After all trades, add a brief "### Patterns" section noting any themes across trades.
 
-Be factual and specific. Every claim about a market event should have a number attached."""
+Be factual and specific. Every claim about a market event should have a number and a source."""
 
 
 def select_notable_trades(trade_log: pd.DataFrame, n: int = 2) -> pd.DataFrame:
