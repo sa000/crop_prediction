@@ -11,7 +11,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 4096
 
 SYSTEM_PROMPT = """You are a commodities market analyst writing a post-mortem on \
@@ -126,22 +126,29 @@ def parse_response(response) -> dict:
     """
     import re
 
-    narrative_parts = []
-    citations = []
+    # Walk response blocks in order. Search results appear before the text
+    # that references them, so we accumulate search URLs in a pending buffer
+    # and attach them to the next text block.
+    text_chunks = []  # list of (text, [citations])
+    pending_cites = []
 
     for block in response.content:
-        if block.type == "text":
-            narrative_parts.append(block.text)
-            if hasattr(block, "citations") and block.citations:
-                for cite in block.citations:
-                    if hasattr(cite, "url"):
-                        citations.append({
-                            "title": getattr(cite, "title", ""),
-                            "url": cite.url,
-                            "cited_text": getattr(cite, "cited_text", ""),
-                        })
+        logger.debug("Post-mortem: response block type=%s", block.type)
 
-    full_narrative = "\n".join(narrative_parts)
+        if block.type == "web_search_tool_result":
+            if hasattr(block, "content") and block.content:
+                for item in block.content:
+                    url = getattr(item, "url", None)
+                    title = getattr(item, "title", "")
+                    if url:
+                        pending_cites.append({"title": title, "url": url})
+
+        elif block.type == "text":
+            text_chunks.append((block.text, pending_cites))
+            pending_cites = []
+
+    # Reassemble full narrative
+    full_narrative = "\n".join(text for text, _ in text_chunks)
 
     # Split on ### headings into per-trade sections
     sections = {}
@@ -156,14 +163,59 @@ def parse_response(response) -> dict:
             body = part[heading_match.end():].strip()
             sections[key] = body
         else:
-            # Text before any heading (preamble)
             if part:
                 sections["_preamble"] = part
+
+    # Map citations to sections by checking which text chunks fall in which section
+    section_citations = {key: [] for key in sections}
+    char_offset = 0
+    for text, cites in text_chunks:
+        if cites:
+            # Find which section this text chunk belongs to
+            for sec_key, sec_body in sections.items():
+                if sec_body and text.strip() and text.strip()[:60] in sec_body:
+                    seen = {c["url"] for c in section_citations[sec_key]}
+                    for c in cites:
+                        if c["url"] not in seen:
+                            section_citations[sec_key].append(c)
+                            seen.add(c["url"])
+                    break
+        char_offset += len(text)
+
+    # Also extract markdown links from section text as additional citations
+    for key, body in sections.items():
+        seen = {c["url"] for c in section_citations.get(key, [])}
+        for match in re.finditer(r"\[([^\]]+)\]\((https?://[^\)]+)\)", body):
+            title, url = match.group(1), match.group(2)
+            if url not in seen:
+                section_citations.setdefault(key, []).append(
+                    {"title": title, "url": url}
+                )
+                seen.add(url)
+
+    # Build global citation list (deduplicated)
+    all_citations = []
+    all_seen = set()
+    for cites in section_citations.values():
+        for c in cites:
+            if c["url"] not in all_seen:
+                all_seen.add(c["url"])
+                all_citations.append(c)
+
+    logger.info(
+        "Post-mortem: parsed %d sections: %s, %d total citations",
+        len(sections), list(sections.keys()), len(all_citations),
+    )
+    for key, cites in section_citations.items():
+        logger.info(
+            "Post-mortem: section '%s' has %d citations", key, len(cites),
+        )
 
     return {
         "narrative": full_narrative,
         "sections": sections,
-        "citations": citations,
+        "section_citations": section_citations,
+        "citations": all_citations,
     }
 
 
@@ -194,6 +246,7 @@ def analyze_trades(
         return {
             "narrative": "",
             "sections": {},
+            "section_citations": {},
             "citations": [],
             "trades": notable,
             "error": "No trades to analyze.",
@@ -216,16 +269,27 @@ def analyze_trades(
             system=system,
             messages=[{"role": "user", "content": context}],
             max_tokens=MAX_TOKENS,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
         )
-    except anthropic.APIError:
+    except anthropic.APIError as e:
         logger.exception("Post-mortem: Anthropic API error during trade analysis")
         return {
             "narrative": "",
             "sections": {},
+            "section_citations": {},
             "citations": [],
             "trades": notable,
-            "error": "Failed to reach the AI service. Please try again.",
+            "error": f"API error: {e.message}",
+        }
+    except Exception as e:
+        logger.exception("Post-mortem: unexpected error during trade analysis")
+        return {
+            "narrative": "",
+            "sections": {},
+            "section_citations": {},
+            "citations": [],
+            "trades": notable,
+            "error": f"Unexpected error: {e}",
         }
 
     logger.info("Post-mortem: parsing API response")
@@ -239,6 +303,7 @@ def analyze_trades(
     return {
         "narrative": parsed["narrative"],
         "sections": parsed["sections"],
+        "section_citations": parsed["section_citations"],
         "citations": parsed["citations"],
         "trades": notable,
         "error": None,

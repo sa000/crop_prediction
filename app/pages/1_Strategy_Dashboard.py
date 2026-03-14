@@ -341,6 +341,7 @@ def _render_postmortem_sidebar():
 
         # Notable trade cards with collapsible analysis
         sections = pm.get("sections", {})
+        sec_citations = pm.get("section_citations", {})
         if not pm["trades"].empty:
             for _, t in pm["trades"].iterrows():
                 pnl_color = "#22c55e" if t["pnl"] > 0 else "#ef4444"
@@ -389,14 +390,42 @@ def _render_postmortem_sidebar():
                 )
 
                 # Collapsible AI analysis under each card
+                # Fuzzy match: the model may add extra text to headings
                 label = t["label"]
-                section_text = sections.get(label, "")
+                section_text = ""
+                matched_key = ""
+                for sec_key, sec_val in sections.items():
+                    if label in sec_key:
+                        section_text = sec_val
+                        matched_key = sec_key
+                        break
                 if section_text:
                     with st.sidebar.expander("AI Analysis", expanded=False):
                         st.markdown(section_text)
+                        # Sources for this specific trade
+                        trade_cites = sec_citations.get(matched_key, [])
+                        if trade_cites:
+                            links = " &bull; ".join(
+                                f'<a href="{c["url"]}" target="_blank" '
+                                f'style="color: #60a5fa; font-size: 0.72rem; '
+                                f'text-decoration: none;">{c["title"]}</a>'
+                                for c in trade_cites
+                            )
+                            st.markdown(
+                                f'<div style="border-top: 1px solid '
+                                f'rgba(148,163,184,0.15); padding-top: 0.4rem; '
+                                f'margin-top: 0.5rem;">'
+                                f'<span style="color: #94a3b8; font-size: 0.72rem; '
+                                f'font-weight: 600;">Sources: </span>{links}</div>',
+                                unsafe_allow_html=True,
+                            )
 
         # Patterns section at the end
-        patterns_text = sections.get("Patterns", "")
+        patterns_text = ""
+        for sec_key, sec_val in sections.items():
+            if "pattern" in sec_key.lower():
+                patterns_text = sec_val
+                break
         if patterns_text:
             with st.sidebar.expander("Patterns Across Trades", expanded=False):
                 st.markdown(patterns_text)
