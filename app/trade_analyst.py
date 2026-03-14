@@ -126,11 +126,9 @@ def parse_response(response) -> dict:
     """
     import re
 
-    # Walk response blocks in order. Search results appear before the text
-    # that references them, so we accumulate search URLs in a pending buffer
-    # and attach them to the next text block.
-    text_chunks = []  # list of (text, [citations])
-    pending_cites = []
+    # Collect all search result URLs and narrative text
+    narrative_parts = []
+    all_search_results = []
 
     for block in response.content:
         logger.debug("Post-mortem: response block type=%s", block.type)
@@ -141,14 +139,20 @@ def parse_response(response) -> dict:
                     url = getattr(item, "url", None)
                     title = getattr(item, "title", "")
                     if url:
-                        pending_cites.append({"title": title, "url": url})
+                        all_search_results.append({"title": title, "url": url})
 
         elif block.type == "text":
-            text_chunks.append((block.text, pending_cites))
-            pending_cites = []
+            narrative_parts.append(block.text)
 
-    # Reassemble full narrative
-    full_narrative = "\n".join(text for text, _ in text_chunks)
+    full_narrative = "\n".join(narrative_parts)
+
+    # Deduplicate search results
+    seen_urls = set()
+    unique_results = []
+    for r in all_search_results:
+        if r["url"] not in seen_urls:
+            seen_urls.add(r["url"])
+            unique_results.append(r)
 
     # Split on ### headings into per-trade sections
     sections = {}
@@ -166,23 +170,45 @@ def parse_response(response) -> dict:
             if part:
                 sections["_preamble"] = part
 
-    # Map citations to sections by checking which text chunks fall in which section
-    section_citations = {key: [] for key in sections}
-    char_offset = 0
-    for text, cites in text_chunks:
-        if cites:
-            # Find which section this text chunk belongs to
-            for sec_key, sec_body in sections.items():
-                if sec_body and text.strip() and text.strip()[:60] in sec_body:
-                    seen = {c["url"] for c in section_citations[sec_key]}
-                    for c in cites:
-                        if c["url"] not in seen:
-                            section_citations[sec_key].append(c)
-                            seen.add(c["url"])
-                    break
-        char_offset += len(text)
+    # Match citations to sections by keyword relevance. Extract
+    # significant words from each section body, then score each
+    # search result by how many of those words appear in its title.
+    STOP_WORDS = {
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+        "for", "of", "with", "by", "from", "as", "is", "was", "were",
+        "are", "be", "been", "being", "have", "has", "had", "do", "does",
+        "did", "will", "would", "could", "should", "may", "might", "can",
+        "this", "that", "these", "those", "it", "its", "not", "no",
+        "than", "more", "also", "which", "what", "when", "where", "how",
+        "all", "each", "every", "both", "few", "some", "any", "most",
+        "per", "up", "down", "out", "into", "over", "after", "before",
+    }
 
-    # Also extract markdown links from section text as additional citations
+    section_citations = {}
+    for key, body in sections.items():
+        if key == "_preamble":
+            section_citations[key] = []
+            continue
+
+        # Extract meaningful words from section body
+        words = set(
+            w.lower() for w in re.findall(r"[A-Za-z]{3,}", body)
+        ) - STOP_WORDS
+
+        # Score each search result by title word overlap
+        scored = []
+        for r in unique_results:
+            title_words = set(
+                w.lower() for w in re.findall(r"[A-Za-z]{3,}", r["title"])
+            )
+            overlap = len(words & title_words)
+            if overlap > 0:
+                scored.append((overlap, r))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        section_citations[key] = [r for _, r in scored[:5]]
+
+    # Also extract markdown links from section text
     for key, body in sections.items():
         seen = {c["url"] for c in section_citations.get(key, [])}
         for match in re.finditer(r"\[([^\]]+)\]\((https?://[^\)]+)\)", body):
@@ -193,18 +219,9 @@ def parse_response(response) -> dict:
                 )
                 seen.add(url)
 
-    # Build global citation list (deduplicated)
-    all_citations = []
-    all_seen = set()
-    for cites in section_citations.values():
-        for c in cites:
-            if c["url"] not in all_seen:
-                all_seen.add(c["url"])
-                all_citations.append(c)
-
     logger.info(
-        "Post-mortem: parsed %d sections: %s, %d total citations",
-        len(sections), list(sections.keys()), len(all_citations),
+        "Post-mortem: parsed %d sections: %s, %d search results",
+        len(sections), list(sections.keys()), len(unique_results),
     )
     for key, cites in section_citations.items():
         logger.info(
@@ -215,7 +232,7 @@ def parse_response(response) -> dict:
         "narrative": full_narrative,
         "sections": sections,
         "section_citations": section_citations,
-        "citations": all_citations,
+        "citations": unique_results,
     }
 
 
