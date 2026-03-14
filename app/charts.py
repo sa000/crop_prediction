@@ -46,9 +46,12 @@ def _dates(index: pd.Index) -> list[str]:
     return [d.strftime("%Y-%m-%d") for d in index]
 
 
-def _apply_layout(fig: go.Figure, title: str, yaxis_title: str, height: int = 420) -> go.Figure:
+def _apply_layout(fig: go.Figure, title: str, yaxis_title: str, height: int = 420,
+                   xaxis_type: str | None = None) -> go.Figure:
     """Apply consistent layout defaults to a figure."""
     fig.update_layout(title=title, yaxis_title=yaxis_title, height=height, **LAYOUT_DEFAULTS)
+    if xaxis_type:
+        fig.update_xaxes(type=xaxis_type, nticks=10, tickformat="%b %Y")
     return fig
 
 
@@ -79,7 +82,7 @@ def equity_curve(backtest_df: pd.DataFrame, capital: float) -> go.Figure:
         annotation_position="bottom right",
         annotation_font_color=COLORS["text"],
     )
-    return _apply_layout(fig, "Equity Curve", "Equity ($M)")
+    return _apply_layout(fig, "Equity Curve", "Equity ($M)", xaxis_type="date")
 
 
 def price_with_signals(backtest_df: pd.DataFrame, trade_log: pd.DataFrame) -> go.Figure:
@@ -121,21 +124,21 @@ def price_with_signals(backtest_df: pd.DataFrame, trade_log: pd.DataFrame) -> go
                 block_start = dates[i]
             elif positions[i] != pos_val and in_block:
                 in_block = False
-                fig.add_vrect(
-                    x0=block_start, x1=dates[i - 1],
-                    fillcolor=color, layer="below", line_width=0,
-                    annotation_text=label if not added_legend else None,
-                    annotation_position="top left" if not added_legend else None,
-                )
+                vrect_kw = dict(x0=block_start, x1=dates[i - 1],
+                                fillcolor=color, layer="below", line_width=0)
+                if not added_legend:
+                    vrect_kw["annotation_text"] = label
+                    vrect_kw["annotation_position"] = "top left"
+                fig.add_vrect(**vrect_kw)
                 added_legend = True
 
         if in_block:
-            fig.add_vrect(
-                x0=block_start, x1=dates[-1],
-                fillcolor=color, layer="below", line_width=0,
-                annotation_text=label if not added_legend else None,
-                annotation_position="top left" if not added_legend else None,
-            )
+            vrect_kw = dict(x0=block_start, x1=dates[-1],
+                            fillcolor=color, layer="below", line_width=0)
+            if not added_legend:
+                vrect_kw["annotation_text"] = label
+                vrect_kw["annotation_position"] = "top left"
+            fig.add_vrect(**vrect_kw)
 
     # Entry/exit markers
     if not trade_log.empty:
@@ -154,7 +157,7 @@ def price_with_signals(backtest_df: pd.DataFrame, trade_log: pd.DataFrame) -> go
             marker=dict(symbol="triangle-down", size=10, color=COLORS["exit"]),
         ))
 
-    return _apply_layout(fig, "Price with Trading Signals", "Price", height=450)
+    return _apply_layout(fig, "Price with Trading Signals", "Price", height=450, xaxis_type="date")
 
 
 def drawdown_chart(backtest_df: pd.DataFrame) -> go.Figure:
@@ -191,7 +194,7 @@ def drawdown_chart(backtest_df: pd.DataFrame) -> go.Figure:
         name="Drawdown",
     ))
 
-    return _apply_layout(fig, "Drawdown from Peak Equity", "Drawdown ($)")
+    return _apply_layout(fig, "Drawdown from Peak Equity", "Drawdown ($)", xaxis_type="date")
 
 
 def rolling_sharpe_chart(series: pd.Series) -> go.Figure:
@@ -216,7 +219,7 @@ def rolling_sharpe_chart(series: pd.Series) -> go.Figure:
         fig.add_hline(y=level, line_dash="dot", line_color=COLORS["reference"],
                       annotation_text=str(level), annotation_position="bottom right",
                       annotation_font_color=COLORS["text"])
-    return _apply_layout(fig, "Rolling Sharpe Ratio (60-day)", "Sharpe Ratio")
+    return _apply_layout(fig, "Rolling Sharpe Ratio (60-day)", "Sharpe Ratio", xaxis_type="date")
 
 
 def rolling_win_rate_chart(series: pd.Series) -> go.Figure:
@@ -241,7 +244,7 @@ def rolling_win_rate_chart(series: pd.Series) -> go.Figure:
                   annotation_text="50%", annotation_position="bottom right",
                   annotation_font_color=COLORS["text"])
     fig.update_yaxes(range=[0, 100])
-    return _apply_layout(fig, "Rolling Win Rate (last 20 trades)", "Win Rate (%)")
+    return _apply_layout(fig, "Rolling Win Rate (last 20 trades)", "Win Rate (%)", xaxis_type="date")
 
 
 def monthly_return_heatmap(monthly_df: pd.DataFrame) -> go.Figure:
@@ -395,7 +398,7 @@ def price_line_chart(df: pd.DataFrame, ticker_name: str, field: str) -> go.Figur
     )
 
     yaxis_title = "Volume" if field == "Volume" else "Price"
-    return _apply_layout(fig, f"{ticker_name} -- {field}", yaxis_title, height=480)
+    return _apply_layout(fig, f"{ticker_name} -- {field}", yaxis_title, height=480, xaxis_type="date")
 
 
 def feature_line_chart(
@@ -429,7 +432,7 @@ def feature_line_chart(
     )
 
     title = f"{entity.replace('_', ' ').title()} -- {feature}"
-    return _apply_layout(fig, title, feature, height=480)
+    return _apply_layout(fig, title, feature, height=480, xaxis_type="date")
 
 
 def seasonality_chart(
@@ -526,3 +529,158 @@ def distribution_chart(
         )
 
     return _apply_layout(fig, title, "Count", height=380)
+
+
+def sharpe_distribution_chart(
+    sharpe_ratios: list[float], original_sharpe: float
+) -> go.Figure:
+    """Histogram of Monte Carlo Sharpe ratios with the original Sharpe marked.
+
+    Args:
+        sharpe_ratios: List of Sharpe ratios from MC simulation paths.
+        original_sharpe: Sharpe ratio from the original (unperturbed) backtest.
+
+    Returns:
+        Plotly Figure.
+    """
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=sharpe_ratios, nbinsx=40, name="MC Sharpe Ratios",
+        marker_color=COLORS["histogram"], opacity=0.75,
+    ))
+    fig.add_vline(
+        x=original_sharpe, line_dash="dash", line_color="#22c55e", line_width=2,
+        annotation_text=f"Original: {original_sharpe:.2f}",
+        annotation_position="top right",
+        annotation_font_color="#22c55e",
+    )
+    fig.add_vline(
+        x=0, line_dash="dot", line_color=COLORS["reference"], line_width=1,
+        annotation_text="0",
+        annotation_position="bottom left",
+        annotation_font_color=COLORS["text"],
+    )
+    return _apply_layout(fig, "Sharpe Ratio Distribution (Monte Carlo)", "Count")
+
+
+def bootstrap_drawdown_chart(
+    max_drawdowns: list[float], original_dd: float
+) -> go.Figure:
+    """Histogram of bootstrapped max drawdown values with the original marked.
+
+    Args:
+        max_drawdowns: List of max drawdowns (negative $) from bootstrap paths.
+        original_dd: Max drawdown from the actual trade ordering.
+
+    Returns:
+        Plotly Figure.
+    """
+    dd_millions = [d / 1e6 for d in max_drawdowns]
+    orig_m = original_dd / 1e6
+
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=dd_millions, nbinsx=40, name="Bootstrap Max DD",
+        marker_color=COLORS["histogram"], opacity=0.75,
+    ))
+    fig.add_vline(
+        x=orig_m, line_dash="dash", line_color="#22c55e", line_width=2,
+        annotation_text=f"Original: ${orig_m:.2f}M",
+        annotation_position="top right",
+        annotation_font_color="#22c55e",
+    )
+    fig.update_xaxes(title_text="Max Drawdown ($M)")
+    return _apply_layout(fig, "Max Drawdown Distribution (Bootstrap)", "Count")
+
+
+def regime_comparison_chart(regime_stats: dict) -> go.Figure:
+    """Grouped bar chart comparing high-vol and low-vol regime metrics.
+
+    Args:
+        regime_stats: Dict from compute_regime_stats with high_vol/low_vol sub-dicts.
+
+    Returns:
+        Plotly Figure.
+    """
+    metrics = ["Sharpe", "Return %", "|Max DD %|", "Win Rate %"]
+    high = regime_stats["high_vol"]
+    low = regime_stats["low_vol"]
+
+    high_vals = [
+        high["sharpe_ratio"],
+        high["total_return_pct"],
+        abs(high["max_drawdown_pct"]),
+        high["win_rate"] * 100,
+    ]
+    low_vals = [
+        low["sharpe_ratio"],
+        low["total_return_pct"],
+        abs(low["max_drawdown_pct"]),
+        low["win_rate"] * 100,
+    ]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=metrics, y=high_vals, name="High Vol",
+        marker_color="#f59e0b",
+        text=[f"{v:.2f}" for v in high_vals],
+        textposition="outside",
+    ))
+    fig.add_trace(go.Bar(
+        x=metrics, y=low_vals, name="Low Vol",
+        marker_color="#3B82F6",
+        text=[f"{v:.2f}" for v in low_vals],
+        textposition="outside",
+    ))
+    fig.update_layout(barmode="group")
+    return _apply_layout(fig, "Volatility Regime Comparison", "")
+
+
+def equity_fan_chart(
+    equity_curves: list[pd.Series],
+    original_equity: pd.Series,
+    capital: float,
+) -> go.Figure:
+    """Fan chart of MC equity paths with the original path highlighted.
+
+    Semi-transparent gray lines for MC paths, solid blue for the original.
+
+    Args:
+        equity_curves: List of equity Series from MC simulation paths.
+        original_equity: Equity Series from the original backtest.
+        capital: Starting capital in dollars.
+
+    Returns:
+        Plotly Figure.
+    """
+    fig = go.Figure()
+
+    # MC paths in gray
+    for i, curve in enumerate(equity_curves):
+        dates = _dates(curve.index)
+        fig.add_trace(go.Scatter(
+            x=dates, y=(curve / 1e6).tolist(),
+            mode="lines",
+            line=dict(color="rgba(148, 163, 184, 0.12)", width=0.8),
+            showlegend=i == 0,
+            name="MC Paths" if i == 0 else None,
+            hoverinfo="skip",
+        ))
+
+    # Original equity in blue
+    dates = _dates(original_equity.index)
+    fig.add_trace(go.Scatter(
+        x=dates, y=(original_equity / 1e6).tolist(),
+        mode="lines", name="Original",
+        line=dict(color=COLORS["equity"], width=2.5),
+    ))
+
+    # Starting capital reference
+    fig.add_hline(
+        y=capital / 1e6, line_dash="dash", line_color=COLORS["reference"],
+        annotation_text=f"${capital / 1e6:.0f}M start",
+        annotation_position="bottom right",
+        annotation_font_color=COLORS["text"],
+    )
+
+    return _apply_layout(fig, "Equity Fan Chart (Monte Carlo)", "Equity ($M)", xaxis_type="date")

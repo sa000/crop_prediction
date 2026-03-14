@@ -76,7 +76,7 @@ def compute_daily_pnl(
             # Size new position from current equity
             if pos != 0:
                 allocation = current_equity * risk_pct
-                current_units = allocation / closes[i] if closes[i] > 0 else 0.0
+                current_units = int(allocation / closes[i]) if closes[i] > 0 else 0
             else:
                 current_units = 0.0
 

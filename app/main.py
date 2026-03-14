@@ -52,7 +52,7 @@ with col1:
             </h3>
             <p style="color: #94a3b8; font-size: 0.9rem; line-height: 1.5;">
                 Run backtests on crop futures strategies. View equity curves,
-                risk metrics, trade signals, and full trade logs.
+                risk metrics, trade signals, and Monte Carlo stress tests.
             </p>
         </div>
         """,

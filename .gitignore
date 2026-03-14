@@ -9,5 +9,8 @@ __pycache__/
 # Streamlit secrets (API keys)
 .streamlit/secrets.toml
 
+# PDFs
+*.pdf
+
 # OS
 .DS_Store

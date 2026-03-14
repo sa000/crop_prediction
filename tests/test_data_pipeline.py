@@ -1,8 +1,9 @@
-"""Tests for the data pipeline: DB tables, price loading, feature store, registry."""
+"""Tests for the data pipeline: DB tables, price loading, feature store, registry, robustness."""
 
 import json
 
 import pandas as pd
+import plotly.graph_objects as go
 
 from etl.db import (
     upsert_strategy, list_strategies, get_strategy,
@@ -10,6 +11,7 @@ from etl.db import (
 )
 from features import store
 from features.query import read_parquet
+from strategies.robustness import generate_noisy_prices, run_monte_carlo, run_bootstrap, compute_regime_stats
 
 
 class TestDatabase:
@@ -220,3 +222,118 @@ class TestSharedAnalyses:
         """Querying a fake share ID returns None."""
         result = load_shared_analysis(db_connection, "nonexistent_id")
         assert result is None
+
+
+class TestRobustness:
+    """Verify Monte Carlo robustness analysis and related charts."""
+
+    def test_generate_noisy_prices(self, corn_prices):
+        """Noisy prices are a Series, all positive, and differ from original."""
+        # Use 2025+ slice where back-adjusted prices are positive
+        close = corn_prices.loc["2025-01-01":]["Close"]
+        noisy = generate_noisy_prices(close, noise_scale=0.5)
+
+        assert isinstance(noisy, pd.Series)
+        assert len(noisy) > 0
+        assert len(noisy) <= len(close)
+        assert (noisy > 0).all()
+        # Noisy prices should differ from original on at least some days
+        original_aligned = close.reindex(noisy.index)
+        assert not noisy.equals(original_aligned)
+
+    def test_run_monte_carlo(self, backtest_result):
+        """MC result has expected keys, correct sharpe_ratios length, pct_profitable in [0,1]."""
+        result_df, _, _ = backtest_result
+        # Use a trivial signal function that preserves existing signal column
+        mc = run_monte_carlo(
+            result_df,
+            generate_signal_fn=lambda df: df,
+            n_paths=10,
+            noise_scale=0.5,
+            seed=42,
+        )
+
+        assert "sharpe_ratios" in mc
+        assert "total_returns" in mc
+        assert "equity_curves" in mc
+        assert "pct_profitable" in mc
+        assert "original_sharpe" in mc
+        assert "original_sharpe_percentile" in mc
+        assert "original_equity" in mc
+
+        assert len(mc["sharpe_ratios"]) == 10
+        assert 0.0 <= mc["pct_profitable"] <= 1.0
+
+    def test_sharpe_distribution_chart(self):
+        """sharpe_distribution_chart returns a Plotly Figure."""
+        from app.charts import sharpe_distribution_chart
+
+        fig = sharpe_distribution_chart([0.5, 1.0, 1.5, 0.8, -0.2], 1.0)
+        assert isinstance(fig, go.Figure)
+
+    def test_equity_fan_chart(self, backtest_result):
+        """equity_fan_chart returns a Plotly Figure."""
+        from app.charts import equity_fan_chart
+
+        result_df, _, _ = backtest_result
+        equity = result_df["equity"]
+        # Create a couple of fake MC equity curves
+        curves = [equity * 1.01, equity * 0.99]
+        fig = equity_fan_chart(curves, equity, 100_000_000)
+        assert isinstance(fig, go.Figure)
+
+    def test_compute_regime_stats(self, backtest_result):
+        """Regime stats dict has expected keys and sub-keys."""
+        result_df, trade_log, _ = backtest_result
+        regime = compute_regime_stats(result_df, trade_log)
+
+        assert "vol_threshold" in regime
+        assert regime["vol_threshold"] > 0
+        for key in ("high_vol", "low_vol"):
+            assert key in regime
+            sub = regime[key]
+            for metric in ("sharpe_ratio", "total_return_pct", "max_drawdown_pct",
+                           "num_trades", "win_rate", "num_days"):
+                assert metric in sub, f"{key} missing {metric}"
+
+    def test_regime_stats_days_partition(self, backtest_result):
+        """High + low num_days ≈ total days minus vol warm-up period."""
+        result_df, trade_log, _ = backtest_result
+        regime = compute_regime_stats(result_df, trade_log, vol_window=21)
+
+        total = regime["high_vol"]["num_days"] + regime["low_vol"]["num_days"]
+        # Warm-up removes vol_window days, so total should be close to len - 20
+        expected = len(result_df) - 20
+        assert abs(total - expected) <= 2
+
+    def test_regime_stats_win_rate_bounds(self, backtest_result):
+        """Both regime win rates are in [0.0, 1.0]."""
+        result_df, trade_log, _ = backtest_result
+        regime = compute_regime_stats(result_df, trade_log)
+
+        assert 0.0 <= regime["high_vol"]["win_rate"] <= 1.0
+        assert 0.0 <= regime["low_vol"]["win_rate"] <= 1.0
+
+    def test_run_bootstrap(self, backtest_result):
+        """Bootstrap result has expected keys, correct length, all drawdowns <= 0."""
+        _, trade_log, _ = backtest_result
+        bs = run_bootstrap(trade_log, n_paths=50, seed=42)
+
+        for key in ("max_drawdowns", "original_max_drawdown", "median_drawdown",
+                     "pct_worse_drawdown", "n_paths"):
+            assert key in bs, f"Missing key: {key}"
+        assert len(bs["max_drawdowns"]) == 50
+        assert all(d <= 0 for d in bs["max_drawdowns"])
+
+    def test_bootstrap_original_drawdown(self, backtest_result):
+        """Original max drawdown is negative (real backtest has drawdown)."""
+        _, trade_log, _ = backtest_result
+        bs = run_bootstrap(trade_log, n_paths=10, seed=42)
+        assert bs["original_max_drawdown"] < 0
+
+    def test_bootstrap_empty_trades(self):
+        """Empty trade log returns empty max_drawdowns and zero drawdowns."""
+        bs = run_bootstrap(pd.DataFrame(), n_paths=100)
+        assert bs["max_drawdowns"] == []
+        assert bs["original_max_drawdown"] == 0.0
+        assert bs["median_drawdown"] == 0.0

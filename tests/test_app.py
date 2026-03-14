@@ -126,6 +126,30 @@ class TestCharts:
         fig = rolling_sharpe_chart(rs)
         assert isinstance(fig, go.Figure)
 
+    def test_chart_bootstrap_drawdown(self):
+        """bootstrap_drawdown_chart returns a Plotly Figure."""
+        from app.charts import bootstrap_drawdown_chart
+
+        fig = bootstrap_drawdown_chart(
+            [-500000, -1000000, -750000, -200000, -1500000], -800000,
+        )
+        assert isinstance(fig, go.Figure)
+
+    def test_chart_regime_comparison(self):
+        """regime_comparison_chart returns a Plotly Figure."""
+        from app.charts import regime_comparison_chart
+        regime_stats = {
+            "vol_threshold": 0.20,
+            "high_vol": {"sharpe_ratio": 1.0, "total_return_pct": 5.0,
+                         "max_drawdown_pct": -3.0, "num_trades": 10,
+                         "win_rate": 0.6, "num_days": 100},
+            "low_vol": {"sharpe_ratio": 1.5, "total_return_pct": 8.0,
+                        "max_drawdown_pct": -1.5, "num_trades": 15,
+                        "win_rate": 0.7, "num_days": 150},
+        }
+        fig = regime_comparison_chart(regime_stats)
+        assert isinstance(fig, go.Figure)
+
 
 class TestTradeAnalyst:
     """Verify trade analyst helper functions."""

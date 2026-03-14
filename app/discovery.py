@@ -16,7 +16,7 @@ from etl.db import upsert_strategy, delete_strategy, list_strategies
 logger = logging.getLogger(__name__)
 
 STRATEGIES_DIR = Path(__file__).resolve().parents[1] / "strategies"
-EXCLUDED_FILES = {"__init__.py", "backtest.py", "analytics.py"}
+EXCLUDED_FILES = {"__init__.py", "backtest.py", "analytics.py", "robustness.py"}
 
 
 def discover_strategies() -> dict[str, ModuleType]:
