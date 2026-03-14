@@ -2,7 +2,8 @@
 
 import plotly.graph_objects as go
 
-from app.discovery import discover_strategies, get_strategy_metadata
+from app.discovery import discover_strategies, get_strategy_metadata, sync_strategies_to_db
+from etl.db import get_connection, init_tables, list_strategies
 from strategies import analytics
 
 
@@ -44,11 +45,30 @@ class TestDiscovery:
             assert "parameters" in meta
 
     def test_strategy_features_metadata(self):
-        """Every strategy's metadata has a features key."""
+        """Every strategy has ticker_categories and unlinked in FEATURES."""
         strategies = discover_strategies()
         for name, module in strategies.items():
             meta = get_strategy_metadata(module)
             assert "features" in meta
+            features = meta["features"]
+            assert features is not None, f"{name} missing FEATURES"
+            assert "ticker_categories" in features, f"{name} missing ticker_categories"
+            assert "unlinked" in features, f"{name} missing unlinked"
+
+    def test_sync_strategies_to_db(self):
+        """sync_strategies_to_db populates the strategies table with all 3 strategies."""
+        conn = get_connection()
+        init_tables(conn)
+        strategies = sync_strategies_to_db(conn)
+        rows = list_strategies(conn)
+        conn.close()
+
+        assert len(strategies) == 3
+        assert len(rows) == 3
+        db_names = {row["name"] for row in rows}
+        assert "Weather Precipitation" in db_names
+        assert "Sma Crossover" in db_names
+        assert "Momentum Rsi" in db_names
 
 
 class TestCharts:

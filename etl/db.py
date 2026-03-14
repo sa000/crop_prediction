@@ -5,8 +5,10 @@ creation, bulk inserts, and helper queries. Scrapers and downstream
 consumers import from here instead of managing connections directly.
 """
 
+import json
 import logging
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -53,6 +55,35 @@ CREATE TABLE IF NOT EXISTS validation_log (
 );
 """
 
+CREATE_STRATEGIES = """
+CREATE TABLE IF NOT EXISTS strategies (
+    name             TEXT PRIMARY KEY,
+    module_name      TEXT NOT NULL,
+    description      TEXT,
+    summary          TEXT,
+    features_config  TEXT,
+    parameters       TEXT,
+    registered_at    TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+);
+"""
+
+CREATE_SHARED_ANALYSES = """
+CREATE TABLE IF NOT EXISTS shared_analyses (
+    id              TEXT PRIMARY KEY,
+    strategy_name   TEXT NOT NULL,
+    ticker_symbol   TEXT NOT NULL,
+    ticker_name     TEXT NOT NULL,
+    capital         REAL NOT NULL,
+    risk_pct        REAL NOT NULL,
+    cost_per_trade  REAL NOT NULL,
+    result_data     TEXT NOT NULL,
+    trade_log_data  TEXT NOT NULL,
+    stats_data      TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
+"""
+
 
 def get_connection() -> sqlite3.Connection:
     """Open a connection to the SQLite warehouse database.
@@ -75,6 +106,8 @@ def init_tables(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_FUTURES_DAILY)
     conn.execute(CREATE_WEATHER_DAILY)
     conn.execute(CREATE_VALIDATION_LOG)
+    conn.execute(CREATE_STRATEGIES)
+    conn.execute(CREATE_SHARED_ANALYSES)
     conn.commit()
     logger.debug("Tables initialized")
 
@@ -264,3 +297,151 @@ def load_prices(ticker: str = "ZC=F") -> pd.DataFrame:
     df.columns = [c.capitalize() for c in df.columns]
     df.sort_index(inplace=True)
     return df
+
+
+def upsert_strategy(
+    conn: sqlite3.Connection,
+    name: str,
+    module_name: str,
+    description: str,
+    summary: str,
+    features_config: dict | None,
+    parameters: dict,
+) -> None:
+    """Insert or update a strategy row.
+
+    Args:
+        conn: An open SQLite connection.
+        name: Display name (primary key).
+        module_name: Python import path (e.g. 'strategies.weather_precipitation').
+        description: Module docstring.
+        summary: One-line summary.
+        features_config: FEATURES dict (serialized as JSON).
+        parameters: Uppercase constants dict (serialized as JSON).
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT OR REPLACE INTO strategies "
+        "(name, module_name, description, summary, features_config, parameters, "
+        "registered_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, "
+        "COALESCE((SELECT registered_at FROM strategies WHERE name = ?), ?), ?)",
+        (
+            name,
+            module_name,
+            description,
+            summary,
+            json.dumps(features_config) if features_config else None,
+            json.dumps(parameters),
+            name,
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    logger.debug("Upserted strategy: %s", name)
+
+
+def list_strategies(conn: sqlite3.Connection) -> list[dict]:
+    """Return all strategies as a list of dicts.
+
+    Args:
+        conn: An open SQLite connection.
+
+    Returns:
+        List of strategy dicts with all columns.
+    """
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("SELECT * FROM strategies ORDER BY name")
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.row_factory = None
+    return rows
+
+
+def get_strategy(conn: sqlite3.Connection, name: str) -> dict | None:
+    """Return one strategy by name, or None if not found.
+
+    Args:
+        conn: An open SQLite connection.
+        name: Strategy display name.
+
+    Returns:
+        Strategy dict or None.
+    """
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("SELECT * FROM strategies WHERE name = ?", (name,))
+    row = cursor.fetchone()
+    conn.row_factory = None
+    return dict(row) if row else None
+
+
+def delete_strategy(conn: sqlite3.Connection, name: str) -> None:
+    """Remove a strategy row.
+
+    Args:
+        conn: An open SQLite connection.
+        name: Strategy display name.
+    """
+    conn.execute("DELETE FROM strategies WHERE name = ?", (name,))
+    conn.commit()
+    logger.debug("Deleted strategy: %s", name)
+
+
+def save_shared_analysis(
+    conn: sqlite3.Connection,
+    id: str,
+    strategy_name: str,
+    ticker_symbol: str,
+    ticker_name: str,
+    capital: float,
+    risk_pct: float,
+    cost_per_trade: float,
+    result_data: str,
+    trade_log_data: str,
+    stats_data: str,
+) -> None:
+    """Persist a shared backtest analysis to the database.
+
+    Args:
+        conn: An open SQLite connection.
+        id: Unique share ID (12-char hex).
+        strategy_name: Display name of the strategy.
+        ticker_symbol: Yahoo Finance ticker (e.g. 'ZC=F').
+        ticker_name: Human-readable name (e.g. 'Corn').
+        capital: Starting capital used in the backtest.
+        risk_pct: Risk percentage per trade.
+        cost_per_trade: Transaction cost per trade.
+        result_data: JSON-serialized backtest result DataFrame.
+        trade_log_data: JSON-serialized trade log DataFrame.
+        stats_data: JSON-serialized stats dict.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO shared_analyses "
+        "(id, strategy_name, ticker_symbol, ticker_name, capital, risk_pct, "
+        "cost_per_trade, result_data, trade_log_data, stats_data, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (id, strategy_name, ticker_symbol, ticker_name, capital, risk_pct,
+         cost_per_trade, result_data, trade_log_data, stats_data, now),
+    )
+    conn.commit()
+    logger.info("Saved shared analysis: %s", id)
+
+
+def load_shared_analysis(conn: sqlite3.Connection, share_id: str) -> dict | None:
+    """Load a shared analysis by ID.
+
+    Args:
+        conn: An open SQLite connection.
+        share_id: The unique share ID.
+
+    Returns:
+        Dict with all columns, or None if not found.
+    """
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute(
+        "SELECT * FROM shared_analyses WHERE id = ?", (share_id,),
+    )
+    row = cursor.fetchone()
+    conn.row_factory = None
+    return dict(row) if row else None

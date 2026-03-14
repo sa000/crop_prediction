@@ -184,19 +184,19 @@ def read_parquet(
 def read_strategy_features(
     ticker: str,
     categories: list[str] | None = None,
-    weather_states: list[str] | None = None,
+    unlinked: list[dict] | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> pd.DataFrame:
     """Read and join features for strategy consumption.
 
     Joins price-based feature files for the given ticker with optional
-    weather feature files, all on the date column.
+    unlinked feature files (weather, consumer, etc.), all on the date column.
 
     Args:
         ticker: Ticker name (e.g. 'corn').
         categories: Price feature categories to include (default: all).
-        weather_states: Weather states to join (default: none).
+        unlinked: List of {category, entity} dicts for non-ticker features.
         start_date: Optional start date filter.
         end_date: Optional end date filter.
 
@@ -219,19 +219,21 @@ def read_strategy_features(
             merge_cols.append("date")
             result = result.merge(df[merge_cols], on="date", how="inner")
 
-    if weather_states:
-        for state in weather_states:
-            wdf = read_parquet(
-                "weather", state, start_date=start_date, end_date=end_date
+    if unlinked:
+        for item in unlinked:
+            category = item["category"]
+            entity = item["entity"]
+            udf = read_parquet(
+                category, entity, start_date=start_date, end_date=end_date
             )
-            if wdf.empty:
+            if udf.empty:
                 continue
-            wdf = wdf.rename(
-                columns={c: f"{state}_{c}" for c in wdf.columns if c != "date"}
+            udf = udf.rename(
+                columns={c: f"{entity}_{c}" for c in udf.columns if c != "date"}
             )
             if result is None:
-                result = wdf
+                result = udf
             else:
-                result = result.merge(wdf, on="date", how="inner")
+                result = result.merge(udf, on="date", how="inner")
 
     return result if result is not None else pd.DataFrame()

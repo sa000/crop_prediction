@@ -20,9 +20,8 @@ NORMAL_LOW = -0.3          # -0.3 < z < 0.3 -> short (no supply threat)
 NORMAL_HIGH = 0.3
 
 FEATURES = {
-    "categories": None,
-    "weather_states": ["corn_belt"],
-    "ticker_specific": False,
+    "ticker_categories": [],
+    "unlinked": [{"category": "weather", "entity": "corn_belt"}],
 }
 
 SUMMARY = (
@@ -43,7 +42,7 @@ def generate_signal(df):
         DataFrame with added 'signal' column (+1, -1, or 0).
     """
     df = df.copy()
-    anomaly = df["precip_anomaly_30d"]
+    anomaly = df["corn_belt_precip_anomaly_30d"]
     df["signal"] = 0
     df.loc[anomaly < DROUGHT_THRESHOLD, "signal"] = 1      # drought -> long
     df.loc[anomaly > FLOOD_THRESHOLD, "signal"] = 1         # flood -> long

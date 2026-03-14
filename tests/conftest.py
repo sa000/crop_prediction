@@ -6,9 +6,9 @@ Individual tests assert shape, type, and invariant properties."""
 import pandas as pd
 import pytest
 
-from etl.db import get_connection, load_prices
+from etl.db import get_connection, init_tables, load_prices
 from features import store
-from features.query import load_registry, read_parquet
+from features.query import load_registry, read_parquet, read_strategy_features
 from strategies.backtest import run_backtest
 from strategies.weather_precipitation import generate_signal
 from strategies.sma_crossover import generate_signal as sma_generate_signal
@@ -19,6 +19,7 @@ from strategies.momentum_rsi import generate_signal as rsi_generate_signal
 def db_connection():
     """Open a connection to the SQLite warehouse database."""
     conn = get_connection()
+    init_tables(conn)
     yield conn
     conn.close()
 
@@ -42,17 +43,21 @@ def registry():
 
 
 @pytest.fixture(scope="session")
-def backtest_result(corn_prices, weather_features):
+def backtest_result(corn_prices):
     """Run the full backtest pipeline matching the Strategy Dashboard flow.
 
-    Mirrors app/pages/1_Strategy_Dashboard.py lines 177-186:
-    load prices, load weather, set datetime index, inner-join,
-    filter to 2025+, generate signal, run backtest.
+    Uses read_strategy_features with the new unlinked protocol to load
+    weather features, joins with prices, generates signal, runs backtest.
     """
-    weather = weather_features.copy()
-    weather = weather.set_index(pd.to_datetime(weather["date"]))
+    feat_df = read_strategy_features(
+        "corn",
+        categories=None,
+        unlinked=[{"category": "weather", "entity": "corn_belt"}],
+    )
+    feat_df = feat_df.set_index(pd.to_datetime(feat_df["date"]))
+    feat_df = feat_df.drop(columns=["date"], errors="ignore")
 
-    df = corn_prices.join(weather[["precip_anomaly_30d"]], how="inner")
+    df = corn_prices.join(feat_df, how="inner")
     df = df.loc["2025-01-01":]
 
     df = generate_signal(df)

@@ -15,9 +15,8 @@ RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 
 FEATURES = {
-    "categories": ["momentum"],
-    "weather_states": None,
-    "ticker_specific": True,
+    "ticker_categories": ["momentum"],
+    "unlinked": [],
 }
 
 SUMMARY = (

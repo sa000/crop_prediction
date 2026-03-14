@@ -4,7 +4,9 @@ Loads futures from SQLite, weather features from Parquet, runs the selected
 strategy's signal generator and backtest engine, then displays summary stats,
 charts, and the full trade log. Supports multi-ticker comparison via tabs."""
 
+import json
 import sys
+import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -17,8 +19,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app import charts, discovery
 from app.style import inject_css, sidebar_logo, BG_CARD, BG_DARK
-from etl.db import load_prices
-from features import store
+from etl.db import (
+    get_connection, init_tables, load_prices,
+    save_shared_analysis, load_shared_analysis,
+)
 from features.query import list_tickers, read_strategy_features
 from strategies import analytics
 from strategies.backtest import run_backtest
@@ -34,9 +38,67 @@ TICKER_MAP = {
 }
 
 SYMBOL_TO_NAME = {t["symbol"]: t["name"] for t in list_tickers()}
+NAME_TO_SYMBOL = {v: k for k, v in SYMBOL_TO_NAME.items()}
+
+
+def _serialize_result(result_df, trade_log, stats):
+    """Serialize backtest outputs to JSON strings for DB storage."""
+    result_json = result_df.reset_index().to_json(orient="records", date_format="iso")
+    trade_log_json = trade_log.to_json(orient="records", date_format="iso")
+    safe_stats = {
+        k: (1e18 if v == float("inf") else v)
+        for k, v in stats.items()
+    }
+    stats_json = json.dumps(safe_stats)
+    return result_json, trade_log_json, stats_json
+
+
+def _deserialize_result(row):
+    """Deserialize a shared_analyses DB row back to DataFrames and stats dict."""
+    result_df = pd.read_json(row["result_data"], orient="records")
+    result_df["date"] = pd.to_datetime(result_df["date"])
+    result_df = result_df.set_index("date")
+
+    trade_log = pd.read_json(row["trade_log_data"], orient="records")
+    if not trade_log.empty:
+        for col in ["entry_date", "exit_date"]:
+            if col in trade_log.columns:
+                trade_log[col] = pd.to_datetime(trade_log[col])
+
+    stats = json.loads(row["stats_data"])
+    return result_df, trade_log, stats
+
+
+def _auto_copy_share_link(share_id: str):
+    """Auto-copy share URL to clipboard via st.html (runs in main page, no iframe)."""
+    st.html(f"""
+    <script>
+    (function() {{
+        var base = window.location.origin + window.location.pathname;
+        var url = base + '?share={share_id}';
+        navigator.clipboard.writeText(url).catch(function() {{
+            var el = document.createElement('textarea');
+            el.value = url;
+            el.style.position = 'fixed';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        }});
+    }})();
+    </script>
+    """, unsafe_allow_javascript=True)
+
 
 inject_css()
 sidebar_logo()
+
+# Reserve a slot at the very top of the page for clipboard JS.
+# Writing to this placeholder later injects the script early in the DOM,
+# so it executes before the heavy chart iframes below and while the
+# user-activation from the Share button click is still valid (~5 s).
+_clipboard_slot = st.empty()
 
 
 def show_chart(fig, height=450):
@@ -136,6 +198,44 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd):
         st.info("No trades generated.")
 
 
+# --- Shared view detection ---
+share_id = st.query_params.get("share")
+if share_id:
+    conn = get_connection()
+    init_tables(conn)
+    row = load_shared_analysis(conn, share_id)
+    conn.close()
+
+    if not row:
+        st.error("Shared analysis not found.")
+        st.stop()
+
+    result_df, trade_log, stats = _deserialize_result(row)
+
+    rs = analytics.rolling_sharpe(result_df)
+    rw = analytics.rolling_win_rate(trade_log, result_df)
+    mr = analytics.monthly_returns(result_df, row["capital"])
+    dd = analytics.drawdown_periods(result_df)
+
+    created = row["created_at"][:10]
+    st.markdown(
+        f'<div style="background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.10)); '
+        f'border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 1rem 1.25rem; '
+        f'margin-bottom: 1.5rem;">'
+        f'<span style="color: #93c5fd; font-weight: 600;">Shared Analysis</span>'
+        f'<span style="color: #94a3b8;"> &mdash; {row["strategy_name"]} on {row["ticker_name"]}'
+        f' &mdash; Saved {created}</span></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<a href="?" style="color: #60a5fa; text-decoration: none; font-size: 0.85rem;">'
+        '&larr; Back to Dashboard</a>',
+        unsafe_allow_html=True,
+    )
+
+    render_results(result_df, trade_log, stats, rs, rw, mr, dd)
+    st.stop()
+
 st.markdown(
     '<h1 style="font-weight: 600; font-size: 1.8rem; color: #e2e8f0;">'
     'Strategy Dashboard</h1>',
@@ -143,7 +243,10 @@ st.markdown(
 )
 
 # --- Sidebar ---
-strategies = discovery.discover_strategies()
+conn = get_connection()
+init_tables(conn)
+strategies = discovery.sync_strategies_to_db(conn)
+conn.close()
 
 if not strategies:
     st.error("No strategies found in strategies/ directory.")
@@ -180,19 +283,21 @@ def load_and_run(ticker: str):
     futures = load_prices(ticker)
     features_config = getattr(strategy_module, "FEATURES", None)
 
-    if features_config and features_config.get("ticker_specific"):
-        ticker_name = SYMBOL_TO_NAME[ticker]
+    if not features_config:
+        df = futures.loc["2025-01-01":]
+    else:
+        ticker_name = SYMBOL_TO_NAME.get(ticker)
+        ticker_categories = features_config.get("ticker_categories", [])
+        unlinked = features_config.get("unlinked", [])
+
         feat_df = read_strategy_features(
-            ticker_name, categories=features_config.get("categories"),
+            ticker_name,
+            categories=ticker_categories or None,
+            unlinked=unlinked or None,
         )
         feat_df = feat_df.set_index(pd.to_datetime(feat_df["date"]))
         feat_df = feat_df.drop(columns=["date"], errors="ignore")
         df = futures.join(feat_df, how="inner")
-        df = df.loc["2025-01-01":]
-    else:
-        weather = store.read_features("weather", "corn_belt")
-        weather = weather.set_index(pd.to_datetime(weather["date"]))
-        df = futures.join(weather[["precip_anomaly_30d"]], how="inner")
         df = df.loc["2025-01-01":]
 
     df = strategy_module.generate_signal(df)
@@ -243,4 +348,34 @@ st.markdown(
 tabs = st.tabs(ticker_names)
 for tab, name in zip(tabs, ticker_names):
     with tab:
+        _, share_col = st.columns([10, 2])
+        with share_col:
+            if st.button("Share", key=f"share_{name}", use_container_width=True):
+                sid = uuid.uuid4().hex[:12]
+                result_df, trade_log, stats = all_results[name][:3]
+                r_json, tl_json, s_json = _serialize_result(result_df, trade_log, stats)
+                ticker_symbol = TICKER_MAP.get(name, NAME_TO_SYMBOL.get(name, name))
+                conn = get_connection()
+                init_tables(conn)
+                save_shared_analysis(
+                    conn, sid,
+                    strategy_name=st.session_state["strategy_name"],
+                    ticker_symbol=ticker_symbol,
+                    ticker_name=name,
+                    capital=CAPITAL,
+                    risk_pct=RISK_PCT,
+                    cost_per_trade=COST_PER_TRADE,
+                    result_data=r_json,
+                    trade_log_data=tl_json,
+                    stats_data=s_json,
+                )
+                conn.close()
+                st.session_state[f"shared_id_{name}"] = sid
+
+        if f"shared_id_{name}" in st.session_state:
+            with _clipboard_slot:
+                _auto_copy_share_link(st.session_state[f"shared_id_{name}"])
+            st.toast("Link copied to clipboard!")
+            del st.session_state[f"shared_id_{name}"]
+
         render_results(*all_results[name])

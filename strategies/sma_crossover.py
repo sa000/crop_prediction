@@ -11,9 +11,8 @@ Signal logic:
 """
 
 FEATURES = {
-    "categories": ["momentum"],
-    "weather_states": None,
-    "ticker_specific": True,
+    "ticker_categories": ["momentum"],
+    "unlinked": [],
 }
 
 SUMMARY = (
