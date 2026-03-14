@@ -57,6 +57,7 @@ crop_prediction/
     main.py                    -- entry point (streamlit run app/main.py)
     discovery.py               -- strategy auto-discovery from strategies/
     catalog_agent.py           -- AI feature catalog agent (Claude Haiku, structured JSON)
+    trade_analyst.py           -- AI trade post-mortem agent (Claude Sonnet, web search)
     charts.py                  -- Plotly chart builders (pure functions, no Streamlit)
     pages/
       1_Strategy_Dashboard.py  -- backtest results, risk metrics, charts

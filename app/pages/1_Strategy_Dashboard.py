@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app import charts, discovery
+from app import charts, discovery, trade_analyst
 from app.style import inject_css, sidebar_logo, BG_CARD, BG_DARK
 from etl.db import (
     get_connection, init_tables, load_prices,
@@ -278,6 +278,130 @@ st.sidebar.markdown(
 run = st.sidebar.button("Run Backtest", type="primary", use_container_width=True)
 
 
+def _render_postmortem_sidebar():
+    """Render AI Post-Mortem section in sidebar when backtest results exist."""
+    if "results" not in st.session_state:
+        return
+
+    pm_results = st.session_state["results"]
+    pm_tickers = st.session_state.get("ticker_names", [])
+    has_trades = any(
+        not pm_results[name][1].empty for name in pm_tickers if name in pm_results
+    )
+
+    if not has_trades:
+        return
+
+    st.sidebar.markdown("---")
+    has_pm_key = False
+    try:
+        pm_api_key = st.secrets["ANTHROPIC_API_KEY"]
+        if pm_api_key and not pm_api_key.startswith("sk-ant-your-key"):
+            has_pm_key = True
+    except (KeyError, FileNotFoundError):
+        pass
+
+    if not has_pm_key:
+        st.sidebar.info(
+            "Add your Anthropic API key to .streamlit/secrets.toml "
+            "to enable AI post-mortem analysis."
+        )
+        return
+
+    if st.sidebar.button("AI Post-Mortem Analysis", use_container_width=True):
+        for name in pm_tickers:
+            if name not in pm_results:
+                continue
+            tl = pm_results[name][1]
+            if tl.empty:
+                continue
+            ticker_symbol = TICKER_MAP.get(name, NAME_TO_SYMBOL.get(name, name))
+            with st.spinner(f"Analyzing {name} trades..."):
+                pm_result = trade_analyst.analyze_trades(
+                    tl, ticker_symbol, name, pm_api_key,
+                )
+            st.session_state[f"postmortem_{name}"] = pm_result
+
+    # Render post-mortem results in sidebar
+    for name in pm_tickers:
+        pm_key = f"postmortem_{name}"
+        if pm_key not in st.session_state:
+            continue
+        pm = st.session_state[pm_key]
+
+        st.sidebar.markdown(
+            f'<p style="color: #93c5fd; font-weight: 600; '
+            f'margin-top: 1rem;">{name} Post-Mortem</p>',
+            unsafe_allow_html=True,
+        )
+
+        if pm.get("error"):
+            st.sidebar.warning(pm["error"])
+            continue
+
+        # Notable trade cards with collapsible analysis
+        sections = pm.get("sections", {})
+        if not pm["trades"].empty:
+            for _, t in pm["trades"].iterrows():
+                pnl_color = "#22c55e" if t["pnl"] > 0 else "#ef4444"
+                entry_d = pd.to_datetime(t["entry_date"]).strftime("%b %d, %Y")
+                exit_d = pd.to_datetime(t["exit_date"]).strftime("%b %d, %Y")
+                direction = t.get("direction", "long")
+                if direction == "long":
+                    action_entry, action_exit = "Bought", "Sold"
+                else:
+                    action_entry, action_exit = "Shorted", "Covered"
+                st.sidebar.markdown(
+                    f'<div style="background: rgba(30,41,59,0.7); '
+                    f'border-radius: 6px; padding: 0.6rem 0.75rem; '
+                    f'margin-bottom: 0; border-radius: 6px 6px 0 0; '
+                    f'border-left: 3px solid {pnl_color};">'
+                    # Label
+                    f'<div style="color: #e2e8f0; font-weight: 600; '
+                    f'font-size: 0.85rem; margin-bottom: 0.4rem;">{t["label"]}</div>'
+                    # Entry row
+                    f'<div style="display: flex; justify-content: space-between; '
+                    f'margin-bottom: 0.2rem;">'
+                    f'<span style="color: #94a3b8; font-size: 0.78rem;">'
+                    f'{action_entry} on {entry_d}</span>'
+                    f'<span style="color: #e2e8f0; font-weight: 600; '
+                    f'font-size: 0.78rem;">${t["entry_price"]:.2f}</span>'
+                    f'</div>'
+                    # Exit row
+                    f'<div style="display: flex; justify-content: space-between; '
+                    f'margin-bottom: 0.35rem;">'
+                    f'<span style="color: #94a3b8; font-size: 0.78rem;">'
+                    f'{action_exit} on {exit_d}</span>'
+                    f'<span style="color: {pnl_color}; font-weight: 600; '
+                    f'font-size: 0.78rem;">${t["exit_price"]:.2f}</span>'
+                    f'</div>'
+                    # P&L row
+                    f'<div style="border-top: 1px solid rgba(148,163,184,0.15); '
+                    f'padding-top: 0.3rem;">'
+                    f'<span style="color: {pnl_color}; font-weight: 600; '
+                    f'font-size: 0.85rem;">'
+                    f'${t["pnl"]:,.0f}</span>'
+                    f'<span style="color: {pnl_color}; font-size: 0.78rem; '
+                    f'margin-left: 0.4rem;">({t["pct_change"]:+.2f}%)</span>'
+                    f'</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Collapsible AI analysis under each card
+                label = t["label"]
+                section_text = sections.get(label, "")
+                if section_text:
+                    with st.sidebar.expander("AI Analysis", expanded=False):
+                        st.markdown(section_text)
+
+        # Patterns section at the end
+        patterns_text = sections.get("Patterns", "")
+        if patterns_text:
+            with st.sidebar.expander("Patterns Across Trades", expanded=False):
+                st.markdown(patterns_text)
+
+
 def load_and_run(ticker: str):
     """Load data, generate signals, run backtest, compute analytics."""
     futures = load_prices(ticker)
@@ -327,6 +451,8 @@ if run:
     st.session_state["results"] = all_results
     st.session_state["strategy_name"] = selected_name
     st.session_state["ticker_names"] = selected_tickers
+
+_render_postmortem_sidebar()
 
 if "results" not in st.session_state:
     st.markdown(

@@ -1,8 +1,10 @@
-"""Tests for app modules: strategy discovery, chart builders, imports."""
+"""Tests for app modules: strategy discovery, chart builders, trade analyst, imports."""
 
+import pandas as pd
 import plotly.graph_objects as go
 
 from app.discovery import discover_strategies, get_strategy_metadata, sync_strategies_to_db
+from app.trade_analyst import select_notable_trades, build_trade_context
 from etl.db import get_connection, init_tables, list_strategies
 from strategies import analytics
 
@@ -125,15 +127,93 @@ class TestCharts:
         assert isinstance(fig, go.Figure)
 
 
+class TestTradeAnalyst:
+    """Verify trade analyst helper functions."""
+
+    def _make_trade_log(self, pnls):
+        """Build a minimal trade log DataFrame from a list of P&L values."""
+        rows = []
+        for i, pnl in enumerate(pnls):
+            entry_price = 400.0
+            exit_price = entry_price + pnl / 100.0
+            rows.append({
+                "entry_date": pd.Timestamp("2025-01-01") + pd.Timedelta(days=i * 10),
+                "exit_date": pd.Timestamp("2025-01-01") + pd.Timedelta(days=i * 10 + 5),
+                "direction": "long",
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "units": 100.0,
+                "pnl": pnl,
+                "pnl_per_unit": pnl / 100.0,
+                "holding_days": 5,
+            })
+        return pd.DataFrame(rows)
+
+    def test_select_notable_trades(self):
+        """Returns 4 trades (2 best, 2 worst) with labels and pct_change."""
+        trade_log = self._make_trade_log([100, -200, 300, -50, 150, -100])
+        notable = select_notable_trades(trade_log, n=2)
+
+        assert len(notable) == 4
+        assert "label" in notable.columns
+        assert "pct_change" in notable.columns
+
+        labels = notable["label"].tolist()
+        assert "Best Trade #1" in labels
+        assert "Best Trade #2" in labels
+        assert "Worst Trade #1" in labels
+        assert "Worst Trade #2" in labels
+
+        # Best trades should have highest P&L
+        best1 = notable[notable["label"] == "Best Trade #1"].iloc[0]
+        assert best1["pnl"] == 300
+
+        # Worst trades should have lowest P&L
+        worst1 = notable[notable["label"] == "Worst Trade #1"].iloc[0]
+        assert worst1["pnl"] == -200
+
+    def test_select_notable_trades_few(self):
+        """Handles fewer than 4 trades without duplicates."""
+        trade_log = self._make_trade_log([100, -50])
+        notable = select_notable_trades(trade_log, n=2)
+
+        assert len(notable) == 2
+        labels = notable["label"].tolist()
+        assert "Best Trade #1" in labels
+
+    def test_select_notable_trades_empty(self):
+        """Returns empty DataFrame for empty trade log."""
+        trade_log = pd.DataFrame()
+        notable = select_notable_trades(trade_log)
+
+        assert notable.empty
+
+    def test_build_trade_context(self):
+        """Context string includes ticker, commodity, buy/sell language, and trade details."""
+        trade_log = self._make_trade_log([500, -300, 200, -100])
+        notable = select_notable_trades(trade_log, n=2)
+        context = build_trade_context(notable, "ZC=F", "Corn")
+
+        assert "ZC=F" in context
+        assert "Corn" in context
+        assert "Best Trade #1" in context
+        assert "Worst Trade #1" in context
+        assert "Bought" in context
+        assert "Sold" in context
+        assert "$" in context
+
+
 class TestModuleImports:
     """Verify app dependency modules import without error."""
 
     def test_app_modules_importable(self):
-        """app.discovery, app.charts, app.catalog_agent import cleanly."""
+        """app.discovery, app.charts, app.catalog_agent, app.trade_analyst import cleanly."""
         import app.discovery
         import app.charts
         import app.catalog_agent
+        import app.trade_analyst
 
         assert app.discovery is not None
         assert app.charts is not None
         assert app.catalog_agent is not None
+        assert app.trade_analyst is not None
