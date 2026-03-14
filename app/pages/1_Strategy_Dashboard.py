@@ -405,18 +405,20 @@ def _render_postmortem_sidebar():
                         # Sources for this specific trade
                         trade_cites = sec_citations.get(matched_key, [])
                         if trade_cites:
-                            links = " &bull; ".join(
+                            links_html = "".join(
+                                f'<div style="margin-bottom: 0.25rem;">'
                                 f'<a href="{c["url"]}" target="_blank" '
                                 f'style="color: #60a5fa; font-size: 0.72rem; '
-                                f'text-decoration: none;">{c["title"]}</a>'
+                                f'text-decoration: none;">{c["title"]}</a></div>'
                                 for c in trade_cites
                             )
                             st.markdown(
                                 f'<div style="border-top: 1px solid '
                                 f'rgba(148,163,184,0.15); padding-top: 0.4rem; '
                                 f'margin-top: 0.5rem;">'
-                                f'<span style="color: #94a3b8; font-size: 0.72rem; '
-                                f'font-weight: 600;">Sources: </span>{links}</div>',
+                                f'<div style="color: #94a3b8; font-size: 0.72rem; '
+                                f'font-weight: 600; margin-bottom: 0.3rem;">'
+                                f'Sources</div>{links_html}</div>',
                                 unsafe_allow_html=True,
                             )
 
