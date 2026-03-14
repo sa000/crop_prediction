@@ -10,32 +10,15 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-COLORS = {
-    "equity": "#3B82F6",
-    "price": "#e2e8f0",
-    "long": "rgba(34, 197, 94, 0.13)",
-    "short": "rgba(239, 68, 68, 0.13)",
-    "entry": "#22c55e",
-    "exit": "#ef4444",
-    "drawdown": "rgba(239, 68, 68, 0.35)",
-    "drawdown_line": "#ef4444",
-    "reference": "rgba(148, 163, 184, 0.3)",
-    "histogram": "#3B82F6",
-    "var_line": "#ef4444",
-    "grid": "rgba(148, 163, 184, 0.08)",
-    "text": "#94a3b8",
-}
-
-BG_DARK = "#0f1117"
-BG_CARD = "#1a1b2e"
+from app.style import CHART_COLORS as COLORS, BG_DARK, BG_CARD_SOLID, GREEN, RED, AMBER
 
 LAYOUT_DEFAULTS = dict(
     template="plotly_dark",
-    paper_bgcolor=BG_CARD,
+    paper_bgcolor=BG_CARD_SOLID,
     plot_bgcolor=BG_DARK,
     margin=dict(l=60, r=30, t=50, b=50),
     hovermode="x unified",
-    font=dict(size=12, color=COLORS["text"]),
+    font=dict(size=12, color=COLORS["text"], family="Inter, sans-serif"),
     xaxis=dict(gridcolor=COLORS["grid"], zeroline=False),
     yaxis=dict(gridcolor=COLORS["grid"], zeroline=False),
 )
@@ -329,16 +312,16 @@ def price_chart(df: pd.DataFrame, ticker_name: str) -> go.Figure:
         high=df["High"].tolist(),
         low=df["Low"].tolist(),
         close=df["Close"].tolist(),
-        increasing_line_color="#22c55e",
-        decreasing_line_color="#ef4444",
-        increasing_fillcolor="#22c55e",
-        decreasing_fillcolor="#ef4444",
+        increasing_line_color=GREEN,
+        decreasing_line_color=RED,
+        increasing_fillcolor=GREEN,
+        decreasing_fillcolor=RED,
         name="OHLC",
     ), row=1, col=1)
 
     # Volume bars
     colors = [
-        "#22c55e" if c >= o else "#ef4444"
+        GREEN if c >= o else RED
         for o, c in zip(df["Open"].tolist(), df["Close"].tolist())
     ]
     fig.add_trace(go.Bar(
@@ -351,7 +334,7 @@ def price_chart(df: pd.DataFrame, ticker_name: str) -> go.Figure:
     ), row=2, col=1)
 
     fig.update_layout(
-        title=f"{ticker_name} -- OHLCV",
+        title=f"{ticker_name} \u2014 OHLCV",
         height=560,
         xaxis_rangeslider_visible=False,
         xaxis2_rangeslider_visible=True,
@@ -398,7 +381,7 @@ def price_line_chart(df: pd.DataFrame, ticker_name: str, field: str) -> go.Figur
     )
 
     yaxis_title = "Volume" if field == "Volume" else "Price"
-    return _apply_layout(fig, f"{ticker_name} -- {field}", yaxis_title, height=480, xaxis_type="date")
+    return _apply_layout(fig, f"{ticker_name} \u2014 {field}", yaxis_title, height=480, xaxis_type="date")
 
 
 def feature_line_chart(
@@ -431,7 +414,7 @@ def feature_line_chart(
         xaxis_rangeslider_thickness=0.06,
     )
 
-    title = f"{entity.replace('_', ' ').title()} -- {feature}"
+    title = f"{entity.replace('_', ' ').title()} \u2014 {feature}"
     return _apply_layout(fig, title, feature, height=480, xaxis_type="date")
 
 
@@ -474,7 +457,7 @@ def seasonality_chart(
     fig.add_trace(go.Scatter(
         x=labels, y=monthly["min"].tolist(),
         mode="lines", line=dict(width=0), fill="tonexty",
-        fillcolor="rgba(59, 130, 246, 0.1)",
+        fillcolor=COLORS["seasonality_fill"],
         showlegend=False, hoverinfo="skip",
     ))
 
@@ -512,10 +495,10 @@ def distribution_chart(
 
     # Mean line
     fig.add_vline(
-        x=mean_val, line_dash="solid", line_color="#22c55e", line_width=2,
+        x=mean_val, line_dash="solid", line_color=COLORS["mean_line"], line_width=2,
         annotation_text=f"Mean: {mean_val:.2f}",
         annotation_position="top right",
-        annotation_font_color="#22c55e",
+        annotation_font_color=COLORS["mean_line"],
     )
 
     # +/- 1 std dev lines
@@ -549,10 +532,10 @@ def sharpe_distribution_chart(
         marker_color=COLORS["histogram"], opacity=0.75,
     ))
     fig.add_vline(
-        x=original_sharpe, line_dash="dash", line_color="#22c55e", line_width=2,
+        x=original_sharpe, line_dash="dash", line_color=COLORS["mean_line"], line_width=2,
         annotation_text=f"Original: {original_sharpe:.2f}",
         annotation_position="top right",
-        annotation_font_color="#22c55e",
+        annotation_font_color=COLORS["mean_line"],
     )
     fig.add_vline(
         x=0, line_dash="dot", line_color=COLORS["reference"], line_width=1,
@@ -584,10 +567,10 @@ def bootstrap_drawdown_chart(
         marker_color=COLORS["histogram"], opacity=0.75,
     ))
     fig.add_vline(
-        x=orig_m, line_dash="dash", line_color="#22c55e", line_width=2,
+        x=orig_m, line_dash="dash", line_color=COLORS["mean_line"], line_width=2,
         annotation_text=f"Original: ${orig_m:.2f}M",
         annotation_position="top right",
-        annotation_font_color="#22c55e",
+        annotation_font_color=COLORS["mean_line"],
     )
     fig.update_xaxes(title_text="Max Drawdown ($M)")
     return _apply_layout(fig, "Max Drawdown Distribution (Bootstrap)", "Count")
@@ -622,13 +605,13 @@ def regime_comparison_chart(regime_stats: dict) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=metrics, y=high_vals, name="High Vol",
-        marker_color="#f59e0b",
+        marker_color=COLORS["high_vol"],
         text=[f"{v:.2f}" for v in high_vals],
         textposition="outside",
     ))
     fig.add_trace(go.Bar(
         x=metrics, y=low_vals, name="Low Vol",
-        marker_color="#3B82F6",
+        marker_color=COLORS["low_vol"],
         text=[f"{v:.2f}" for v in low_vals],
         textposition="outside",
     ))
@@ -667,7 +650,7 @@ def equity_fan_chart(
             hoverinfo="skip",
         ))
 
-    # Original equity in blue
+    # Original equity
     dates = _dates(original_equity.index)
     fig.add_trace(go.Scatter(
         x=dates, y=(original_equity / 1e6).tolist(),

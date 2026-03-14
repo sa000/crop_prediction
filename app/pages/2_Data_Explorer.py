@@ -17,7 +17,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import catalog_agent, charts
-from app.style import inject_css, sidebar_logo, BG_CARD, TEXT_MUTED, TEXT_PRIMARY, BORDER
+from app.style import (
+    inject_css, sidebar_logo,
+    BG_CARD_SOLID, BORDER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_DIM, GREEN, RED,
+)
 from etl.db import load_raw_data, source_summary
 from features import query as fquery
 from features import store
@@ -44,8 +47,8 @@ def show_chart(fig, height=580):
     """Render a Plotly figure via HTML."""
     html = fig.to_html(include_plotlyjs="cdn", full_html=False)
     wrapper = f"""
-    <div style="background: {BG_CARD}; border-radius: 8px;
-                border: 1px solid rgba(59,130,246,0.12); padding: 4px;">
+    <div style="background: {BG_CARD_SOLID}; border-radius: 10px;
+                border: 1px solid {BORDER}; padding: 4px;">
         {html}
     </div>
     """
@@ -137,7 +140,7 @@ def render_feature_stats(feat_df, feature, meta):
 
     # Stats card
     st.markdown(
-        f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem; margin-top: 1rem;">'
+        f'<p style="color: {TEXT_SECONDARY}; font-size: 0.75rem; margin-top: 1rem;">'
         f'Source: {source_table} &nbsp;|&nbsp; '
         f'Latest: {freshness} &nbsp;|&nbsp; '
         f'Available from: {available_from}</p>',
@@ -160,7 +163,7 @@ def render_feature_stats(feat_df, feature, meta):
         show_chart(
             charts.seasonality_chart(
                 feat_df, "date", feature,
-                f"Seasonality -- {entity_label}",
+                f"Seasonality \u2014 {entity_label}",
             ),
             height=420,
         )
@@ -169,7 +172,7 @@ def render_feature_stats(feat_df, feature, meta):
         show_chart(
             charts.distribution_chart(
                 values,
-                f"Distribution -- {feature}",
+                f"Distribution \u2014 {feature}",
                 mean_val,
                 std_val,
             ),
@@ -182,8 +185,8 @@ def render_feature_stats(feat_df, feature, meta):
 # ---------------------------------------------------------------------------
 
 st.markdown(
-    '<h1 style="font-weight: 600; font-size: 1.8rem; color: #e2e8f0;">'
-    'Data Explorer</h1>',
+    f'<h1 style="font-weight: 600; font-size: 1.8rem; color: {TEXT_PRIMARY};">'
+    f'Data Explorer</h1>',
     unsafe_allow_html=True,
 )
 
@@ -228,7 +231,7 @@ with tab_features:
         if "agent_result" in st.session_state:
             result = st.session_state["agent_result"]
             st.markdown(
-                f'<p style="color: #e2e8f0; font-size: 0.95rem;">'
+                f'<p style="color: {TEXT_PRIMARY}; font-size: 0.95rem;">'
                 f'{result["answer"]}</p>',
                 unsafe_allow_html=True,
             )
@@ -288,7 +291,7 @@ with tab_features:
     # --- Manual dropdowns ---
     st.divider()
     st.markdown(
-        '<p style="color: #64748b; font-size: 0.85rem;">Or browse manually</p>',
+        f'<p style="color: {TEXT_DIM}; font-size: 0.85rem;">Or browse manually</p>',
         unsafe_allow_html=True,
     )
 
@@ -322,7 +325,7 @@ with tab_features:
     desc = get_feature_description(registry, feature)
     if desc:
         st.markdown(
-            f'<p style="color: #64748b; font-size: 0.85rem;">{desc}</p>',
+            f'<p style="color: {TEXT_DIM}; font-size: 0.85rem;">{desc}</p>',
             unsafe_allow_html=True,
         )
 
@@ -334,7 +337,7 @@ with tab_features:
     else:
         non_null = feat_df[feature].dropna()
         st.markdown(
-            f'<p style="color: #64748b; font-size: 0.85rem;">'
+            f'<p style="color: {TEXT_DIM}; font-size: 0.85rem;">'
             f'{len(non_null):,} data points &nbsp;&bull;&nbsp; '
             f'{feat_df["date"].min()} to {feat_df["date"].max()}</p>',
             unsafe_allow_html=True,
@@ -358,7 +361,7 @@ with tab_catalog:
     registry = load_registry()
 
     st.markdown(
-        f'<p style="color: {TEXT_MUTED}; font-size: 0.85rem; margin-bottom: 1.5rem;">'
+        f'<p style="color: {TEXT_SECONDARY}; font-size: 0.85rem; margin-bottom: 1.5rem;">'
         f'Raw data sources ingested into the warehouse</p>',
         unsafe_allow_html=True,
     )
@@ -390,9 +393,9 @@ with tab_catalog:
             if null_data:
                 null_cols = st.columns(len(null_data))
                 for col_widget, (col_name, pct) in zip(null_cols, null_data.items()):
-                    color = "#22c55e" if pct == 0 else "#ef4444"
+                    color = GREEN if pct == 0 else RED
                     col_widget.markdown(
-                        f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem;">'
+                        f'<p style="color: {TEXT_SECONDARY}; font-size: 0.75rem;">'
                         f'{col_name}</p>'
                         f'<p style="color: {color}; font-size: 0.9rem; '
                         f'font-weight: 600;">{pct:.1f}% null</p>',
@@ -402,7 +405,7 @@ with tab_catalog:
             # Derived features
             if derived:
                 st.markdown(
-                    f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem; '
+                    f'<p style="color: {TEXT_SECONDARY}; font-size: 0.75rem; '
                     f'margin-top: 0.5rem;">Derived features: '
                     f'{", ".join(derived)}</p>',
                     unsafe_allow_html=True,
@@ -435,9 +438,9 @@ with tab_catalog:
             if null_data:
                 null_cols = st.columns(len(null_data))
                 for col_widget, (col_name, pct) in zip(null_cols, null_data.items()):
-                    color = "#22c55e" if pct == 0 else "#ef4444"
+                    color = GREEN if pct == 0 else RED
                     col_widget.markdown(
-                        f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem;">'
+                        f'<p style="color: {TEXT_SECONDARY}; font-size: 0.75rem;">'
                         f'{col_name}</p>'
                         f'<p style="color: {color}; font-size: 0.9rem; '
                         f'font-weight: 600;">{pct:.1f}% null</p>',
@@ -446,7 +449,7 @@ with tab_catalog:
 
             if derived:
                 st.markdown(
-                    f'<p style="color: {TEXT_MUTED}; font-size: 0.75rem; '
+                    f'<p style="color: {TEXT_SECONDARY}; font-size: 0.75rem; '
                     f'margin-top: 0.5rem;">Derived features: '
                     f'{", ".join(derived)}</p>',
                     unsafe_allow_html=True,
@@ -503,7 +506,7 @@ with tab_catalog:
         std_val = values.std()
 
         st.markdown(
-            f'<p style="color: {TEXT_MUTED}; font-size: 0.85rem;">'
+            f'<p style="color: {TEXT_SECONDARY}; font-size: 0.85rem;">'
             f'{len(values):,} data points &nbsp;&bull;&nbsp; '
             f'{raw_df["date"].min().date()} to {raw_df["date"].max().date()}</p>',
             unsafe_allow_html=True,
@@ -515,7 +518,7 @@ with tab_catalog:
             show_chart(
                 charts.seasonality_chart(
                     raw_df, "date", field,
-                    f"Seasonality -- {entity_name} {field}",
+                    f"Seasonality \u2014 {entity_name} {field}",
                 ),
                 height=420,
             )
@@ -524,7 +527,7 @@ with tab_catalog:
             show_chart(
                 charts.distribution_chart(
                     values,
-                    f"Distribution -- {entity_name} {field}",
+                    f"Distribution \u2014 {entity_name} {field}",
                     mean_val,
                     std_val,
                 ),

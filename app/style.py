@@ -1,7 +1,7 @@
 """Custom CSS styling for the Streamlit app.
 
-Provides a dark, minimalist theme matching the Trex Quant brand:
-dark navy background, blue accent (#3B82F6), clean sans-serif type."""
+Provides a polished dark theme with indigo accent (#6366f1),
+glass-morphism cards, Inter font, and smooth transitions."""
 
 import base64
 from pathlib import Path
@@ -10,49 +10,114 @@ import streamlit as st
 
 LOGO_PATH = Path(__file__).resolve().parents[1] / "trexquant_logo.png"
 
-ACCENT = "#3B82F6"
-ACCENT_DIM = "rgba(59, 130, 246, 0.15)"
-BG_DARK = "#0f1117"
-BG_CARD = "#1a1b2e"
-BG_CARD_HOVER = "#222340"
-TEXT_PRIMARY = "#e2e8f0"
-TEXT_MUTED = "#94a3b8"
-BORDER = "rgba(59, 130, 246, 0.2)"
+# ---------------------------------------------------------------------------
+# Design System
+# ---------------------------------------------------------------------------
+ACCENT = "#6366f1"
+ACCENT_HOVER = "#4f46e5"
+ACCENT_DIM = "rgba(99, 102, 241, 0.12)"
+BG_DARK = "#0b0d13"
+BG_CARD = "rgba(255, 255, 255, 0.04)"
+BG_CARD_SOLID = "#13141f"
+BG_CARD_HOVER = "rgba(255, 255, 255, 0.07)"
+TEXT_PRIMARY = "#f1f5f9"
+TEXT_SECONDARY = "#94a3b8"
+TEXT_DIM = "#64748b"
+TEXT_FAINT = "#475569"
+BORDER = "rgba(148, 163, 184, 0.08)"
+BORDER_SUBTLE = "rgba(148, 163, 184, 0.05)"
+GREEN = "#22c55e"
+RED = "#ef4444"
+AMBER = "#f59e0b"
+LINK = "#818cf8"
+BADGE = "#a5b4fc"
 
+# Keep old name as alias so existing imports don't break
+TEXT_MUTED = TEXT_SECONDARY
+
+CHART_COLORS = {
+    "equity": ACCENT,
+    "price": TEXT_PRIMARY,
+    "long": "rgba(34, 197, 94, 0.13)",
+    "short": "rgba(239, 68, 68, 0.13)",
+    "entry": GREEN,
+    "exit": RED,
+    "drawdown": "rgba(239, 68, 68, 0.35)",
+    "drawdown_line": RED,
+    "reference": "rgba(148, 163, 184, 0.3)",
+    "histogram": ACCENT,
+    "var_line": RED,
+    "grid": "rgba(148, 163, 184, 0.08)",
+    "text": TEXT_SECONDARY,
+    "high_vol": AMBER,
+    "low_vol": ACCENT,
+    "mean_line": GREEN,
+    "seasonality_fill": "rgba(99, 102, 241, 0.1)",
+}
+
+# ---------------------------------------------------------------------------
+# CSS
+# ---------------------------------------------------------------------------
 CUSTOM_CSS = f"""
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet">
 <style>
     /* --- Global --- */
     .stApp {{
         background-color: {BG_DARK};
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }}
+    .stMarkdown, .stMetric, .stDataFrame,
+    .stSelectbox, .stTextInput, .stSlider,
+    .stButton > button, .stTabs,
+    .block-container h1, .block-container h2,
+    .block-container h3, .block-container h4,
+    .block-container p {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }}
 
     /* --- Sidebar --- */
     section[data-testid="stSidebar"] {{
-        background-color: {BG_CARD};
+        background-color: {BG_CARD_SOLID};
         border-right: 1px solid {BORDER};
     }}
     section[data-testid="stSidebar"] .stSelectbox label,
     section[data-testid="stSidebar"] .stMarkdown p {{
-        color: {TEXT_MUTED};
+        color: {TEXT_SECONDARY};
         font-size: 0.85rem;
     }}
+    /* Hide sidebar collapse-button tooltip / keyboard-shortcut hint */
+    section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] span,
+    [data-testid="collapsedControl"] span {{
+        font-size: 0 !important;
+        overflow: hidden !important;
+    }}
 
-    /* --- Metric cards --- */
+    /* --- Metric cards (glass-morphism) --- */
     div[data-testid="stMetric"] {{
         background: {BG_CARD};
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border: 1px solid {BORDER};
-        border-radius: 8px;
-        padding: 12px 16px;
+        border-radius: 10px;
+        padding: 14px 18px;
+        transition: background 0.2s ease, border-color 0.2s ease;
+    }}
+    div[data-testid="stMetric"]:hover {{
+        background: {BG_CARD_HOVER};
+        border-color: rgba(148, 163, 184, 0.14);
     }}
     div[data-testid="stMetric"] label {{
-        color: {TEXT_MUTED} !important;
-        font-size: 0.75rem !important;
+        color: {TEXT_SECONDARY} !important;
+        font-size: 0.72rem !important;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.06em;
+        font-weight: 500;
     }}
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
         font-size: 1.3rem !important;
         font-weight: 600;
+        color: {TEXT_PRIMARY};
     }}
 
     /* --- Section headers --- */
@@ -67,29 +132,36 @@ CUSTOM_CSS = f"""
     /* --- DataFrames --- */
     .stDataFrame {{
         border: 1px solid {BORDER};
-        border-radius: 8px;
+        border-radius: 10px;
     }}
 
     /* --- Expander --- */
     .streamlit-expanderHeader {{
-        color: {TEXT_MUTED} !important;
+        color: {TEXT_SECONDARY} !important;
         font-size: 0.85rem;
+        transition: color 0.2s ease;
+    }}
+    .streamlit-expanderHeader:hover {{
+        color: {TEXT_PRIMARY} !important;
     }}
 
     /* --- Button --- */
     .stButton > button[kind="primary"] {{
         background-color: {ACCENT};
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         font-weight: 500;
+        transition: background-color 0.2s ease, transform 0.15s ease;
     }}
     .stButton > button[kind="primary"]:hover {{
-        background-color: #2563EB;
+        background-color: {ACCENT_HOVER};
+        transform: translateY(-1px);
     }}
 
     /* --- Tabs --- */
     .stTabs [data-baseweb="tab"] {{
-        color: {TEXT_MUTED};
+        color: {TEXT_SECONDARY};
+        transition: color 0.2s ease;
     }}
     .stTabs [aria-selected="true"] {{
         color: {ACCENT} !important;
@@ -103,7 +175,33 @@ CUSTOM_CSS = f"""
 
     /* --- Chart containers (components.html iframes) --- */
     iframe {{
-        border-radius: 8px;
+        border-radius: 10px;
+    }}
+
+    /* --- Links --- */
+    a {{
+        color: {LINK};
+        transition: color 0.2s ease;
+    }}
+    a:hover {{
+        color: {BADGE};
+    }}
+
+    /* --- Selectbox / inputs --- */
+    .stSelectbox > div > div,
+    .stTextInput > div > div > input {{
+        transition: border-color 0.2s ease;
+    }}
+
+    /* --- Rename "main" to "Home" in sidebar nav --- */
+    [data-testid="stSidebarNav"] li:first-child span {{
+        font-size: 0 !important;
+        line-height: 0 !important;
+    }}
+    [data-testid="stSidebarNav"] li:first-child span::before {{
+        content: "Home";
+        font-size: 0.875rem !important;
+        line-height: 1.6 !important;
     }}
 </style>
 """
@@ -115,7 +213,7 @@ def inject_css():
 
 
 def sidebar_logo():
-    """Render the Trex Quant logo in the sidebar."""
+    """Render the TREXQUANT logo in the sidebar."""
     if LOGO_PATH.exists():
         logo_bytes = LOGO_PATH.read_bytes()
         b64 = base64.b64encode(logo_bytes).decode()
@@ -123,20 +221,15 @@ def sidebar_logo():
             f"""
             <div style="text-align: center; padding: 0.5rem 0 1rem 0;">
                 <img src="data:image/png;base64,{b64}" width="120"
-                     style="border-radius: 8px;" />
-                <div style="color: {TEXT_PRIMARY}; font-size: 1.1rem;
-                            font-weight: 600; margin-top: 8px;
-                            letter-spacing: 0.02em;">
-                    Trex Quant
-                </div>
-                <div style="color: {TEXT_MUTED}; font-size: 0.75rem;
-                            margin-top: 2px;">
-                    Crop Yield Trading Platform
+                     style="border-radius: 10px;" />
+                <div style="font-size: 1.1rem; font-weight: 700;
+                            margin-top: 8px; letter-spacing: 0.04em;">
+                    <span style="color: {TEXT_PRIMARY};">TREX</span><span
+                          style="color: #4A9EF5;">QUANT</span>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     else:
-        st.sidebar.title("Trex Quant")
-        st.sidebar.caption("Crop Yield Trading Platform")
+        st.sidebar.title("TREXQUANT")

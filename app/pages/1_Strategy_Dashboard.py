@@ -19,7 +19,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import charts, discovery, trade_analyst
-from app.style import inject_css, sidebar_logo, BG_CARD, BG_DARK
+from app.style import (
+    inject_css, sidebar_logo,
+    ACCENT, ACCENT_DIM, BG_CARD, BG_CARD_SOLID, BG_DARK, BORDER, BORDER_SUBTLE,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_DIM, TEXT_FAINT,
+    GREEN, RED, AMBER, LINK, BADGE,
+)
 from etl.db import (
     get_connection, init_tables, load_prices,
     save_shared_analysis, load_shared_analysis,
@@ -107,8 +112,8 @@ def show_chart(fig, height=450):
     """Render a Plotly figure via HTML to bypass st.plotly_chart issues."""
     html = fig.to_html(include_plotlyjs="cdn", full_html=False)
     wrapper = f"""
-    <div style="background: {BG_CARD}; border-radius: 8px;
-                border: 1px solid rgba(59,130,246,0.12); padding: 4px;">
+    <div style="background: {BG_CARD_SOLID}; border-radius: 10px;
+                border: 1px solid {BORDER}; padding: 4px;">
         {html}
     </div>
     """
@@ -120,7 +125,7 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
     """Render backtest metrics, charts, trade log, and stress test for a ticker."""
     # --- Header ---
     st.markdown(
-        f'<p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem;">'
+        f'<p style="color: {TEXT_DIM}; font-size: 0.85rem; margin-bottom: 1.5rem;">'
         f'{result_df.index[0].date()} to {result_df.index[-1].date()} &nbsp;&bull;&nbsp; '
         f'{len(result_df)} trading days</p>',
         unsafe_allow_html=True,
@@ -200,8 +205,8 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
                 "pnl": "${:,.2f}",
                 "pnl_per_unit": "${:.2f}",
             }).map(
-                lambda v: "color: #22c55e" if isinstance(v, (int, float)) and v > 0
-                else ("color: #ef4444" if isinstance(v, (int, float)) and v < 0 else ""),
+                lambda v: f"color: {GREEN}" if isinstance(v, (int, float)) and v > 0
+                else (f"color: {RED}" if isinstance(v, (int, float)) and v < 0 else ""),
                 subset=["pnl"],
             ),
             use_container_width=True,
@@ -363,28 +368,29 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
         def _regime_card(label: str, color: str, data: dict) -> str:
             """Build an HTML card for one volatility regime."""
             return (
-                f'<div style="background: {BG_CARD}; border-radius: 8px; '
+                f'<div style="background: {BG_CARD}; backdrop-filter: blur(12px); '
+                f'-webkit-backdrop-filter: blur(12px); border-radius: 10px; '
                 f'border: 1px solid {color}33; padding: 1rem 1.25rem; '
                 f'margin-bottom: 0.75rem;">'
                 f'<div style="color: {color}; font-weight: 600; font-size: 1rem; '
                 f'margin-bottom: 0.75rem;">{label}'
-                f'<span style="color: #64748b; font-weight: 400; font-size: 0.82rem; '
+                f'<span style="color: {TEXT_DIM}; font-weight: 400; font-size: 0.82rem; '
                 f'margin-left: 0.5rem;">{data["num_days"]} days</span></div>'
                 f'<div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">'
-                f'<div><div style="color: #64748b; font-size: 0.75rem;">Sharpe</div>'
-                f'<div style="color: #e2e8f0; font-size: 1.1rem; font-weight: 600;">'
+                f'<div><div style="color: {TEXT_DIM}; font-size: 0.75rem;">Sharpe</div>'
+                f'<div style="color: {TEXT_PRIMARY}; font-size: 1.1rem; font-weight: 600;">'
                 f'{data["sharpe_ratio"]:.2f}</div></div>'
-                f'<div><div style="color: #64748b; font-size: 0.75rem;">Return</div>'
-                f'<div style="color: #e2e8f0; font-size: 1.1rem; font-weight: 600;">'
+                f'<div><div style="color: {TEXT_DIM}; font-size: 0.75rem;">Return</div>'
+                f'<div style="color: {TEXT_PRIMARY}; font-size: 1.1rem; font-weight: 600;">'
                 f'{data["total_return_pct"]:.3f}%</div></div>'
-                f'<div><div style="color: #64748b; font-size: 0.75rem;">Max DD</div>'
-                f'<div style="color: #e2e8f0; font-size: 1.1rem; font-weight: 600;">'
+                f'<div><div style="color: {TEXT_DIM}; font-size: 0.75rem;">Max DD</div>'
+                f'<div style="color: {TEXT_PRIMARY}; font-size: 1.1rem; font-weight: 600;">'
                 f'{data["max_drawdown_pct"]:.3f}%</div></div>'
-                f'<div><div style="color: #64748b; font-size: 0.75rem;">Trades</div>'
-                f'<div style="color: #e2e8f0; font-size: 1.1rem; font-weight: 600;">'
+                f'<div><div style="color: {TEXT_DIM}; font-size: 0.75rem;">Trades</div>'
+                f'<div style="color: {TEXT_PRIMARY}; font-size: 1.1rem; font-weight: 600;">'
                 f'{data["num_trades"]}</div></div>'
-                f'<div><div style="color: #64748b; font-size: 0.75rem;">Win Rate</div>'
-                f'<div style="color: #e2e8f0; font-size: 1.1rem; font-weight: 600;">'
+                f'<div><div style="color: {TEXT_DIM}; font-size: 0.75rem;">Win Rate</div>'
+                f'<div style="color: {TEXT_PRIMARY}; font-size: 1.1rem; font-weight: 600;">'
                 f'{data["win_rate"]:.1%}</div></div>'
                 f'</div></div>'
             )
@@ -392,12 +398,12 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
         col_hi, col_lo = st.columns(2)
         with col_hi:
             st.markdown(
-                _regime_card("High Volatility", "#f59e0b", regime["high_vol"]),
+                _regime_card("High Volatility", AMBER, regime["high_vol"]),
                 unsafe_allow_html=True,
             )
         with col_lo:
             st.markdown(
-                _regime_card("Low Volatility", "#3B82F6", regime["low_vol"]),
+                _regime_card("Low Volatility", ACCENT, regime["low_vol"]),
                 unsafe_allow_html=True,
             )
 
@@ -425,17 +431,17 @@ if share_id:
 
     created = row["created_at"][:10]
     st.markdown(
-        f'<div style="background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.10)); '
-        f'border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 1rem 1.25rem; '
+        f'<div style="background: linear-gradient(135deg, {ACCENT_DIM}, rgba(139,92,246,0.10)); '
+        f'border: 1px solid {ACCENT}33; border-radius: 10px; padding: 1rem 1.25rem; '
         f'margin-bottom: 1.5rem;">'
-        f'<span style="color: #93c5fd; font-weight: 600;">Shared Analysis</span>'
-        f'<span style="color: #94a3b8;"> &mdash; {row["strategy_name"]} on {row["ticker_name"]}'
+        f'<span style="color: {BADGE}; font-weight: 600;">Shared Analysis</span>'
+        f'<span style="color: {TEXT_SECONDARY};"> &mdash; {row["strategy_name"]} on {row["ticker_name"]}'
         f' &mdash; Saved {created}</span></div>',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<a href="?" style="color: #60a5fa; text-decoration: none; font-size: 0.85rem;">'
-        '&larr; Back to Dashboard</a>',
+        f'<a href="?" style="color: {LINK}; text-decoration: none; font-size: 0.85rem;">'
+        f'&larr; Back to Dashboard</a>',
         unsafe_allow_html=True,
     )
 
@@ -443,8 +449,8 @@ if share_id:
     st.stop()
 
 st.markdown(
-    '<h1 style="font-weight: 600; font-size: 1.8rem; color: #e2e8f0;">'
-    'Strategy Dashboard</h1>',
+    f'<h1 style="font-weight: 600; font-size: 1.8rem; color: {TEXT_PRIMARY};">'
+    f'Strategy Dashboard</h1>',
     unsafe_allow_html=True,
 )
 
@@ -465,7 +471,7 @@ metadata = discovery.get_strategy_metadata(strategy_module)
 
 if metadata["summary"]:
     st.sidebar.markdown(
-        f'<p style="color: #94a3b8; font-size: 0.8rem; margin-top: 0.5rem;">'
+        f'<p style="color: {TEXT_SECONDARY}; font-size: 0.8rem; margin-top: 0.5rem;">'
         f'{metadata["summary"]}</p>',
         unsafe_allow_html=True,
     )
@@ -476,7 +482,7 @@ selected_tickers = st.sidebar.pills(
 )
 
 st.sidebar.markdown(
-    f'<p style="color: #64748b; font-size: 0.75rem; margin-top: 1rem;">'
+    f'<p style="color: {TEXT_DIM}; font-size: 0.75rem; margin-top: 1rem;">'
     f'Capital: $100M &nbsp;|&nbsp; Risk: 1% &nbsp;|&nbsp; Cost: $0</p>',
     unsafe_allow_html=True,
 )
@@ -536,7 +542,7 @@ def _render_postmortem_sidebar():
         pm = st.session_state[pm_key]
 
         st.sidebar.markdown(
-            f'<p style="color: #93c5fd; font-weight: 600; '
+            f'<p style="color: {BADGE}; font-weight: 600; '
             f'margin-top: 1rem;">{name} Post-Mortem</p>',
             unsafe_allow_html=True,
         )
@@ -550,7 +556,7 @@ def _render_postmortem_sidebar():
         sec_citations = pm.get("section_citations", {})
         if not pm["trades"].empty:
             for _, t in pm["trades"].iterrows():
-                pnl_color = "#22c55e" if t["pnl"] > 0 else "#ef4444"
+                pnl_color = GREEN if t["pnl"] > 0 else RED
                 entry_d = pd.to_datetime(t["entry_date"]).strftime("%b %d, %Y")
                 exit_d = pd.to_datetime(t["exit_date"]).strftime("%b %d, %Y")
                 direction = t.get("direction", "long")
@@ -559,31 +565,32 @@ def _render_postmortem_sidebar():
                 else:
                     action_entry, action_exit = "Shorted", "Covered"
                 st.sidebar.markdown(
-                    f'<div style="background: rgba(30,41,59,0.7); '
-                    f'border-radius: 6px; padding: 0.6rem 0.75rem; '
-                    f'margin-bottom: 0; border-radius: 6px 6px 0 0; '
+                    f'<div style="background: {BG_CARD}; '
+                    f'backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); '
+                    f'border-radius: 8px; padding: 0.6rem 0.75rem; '
+                    f'margin-bottom: 0; border-radius: 8px 8px 0 0; '
                     f'border-left: 3px solid {pnl_color};">'
                     # Label
-                    f'<div style="color: #e2e8f0; font-weight: 600; '
+                    f'<div style="color: {TEXT_PRIMARY}; font-weight: 600; '
                     f'font-size: 0.85rem; margin-bottom: 0.4rem;">{t["label"]}</div>'
                     # Entry row
                     f'<div style="display: flex; justify-content: space-between; '
                     f'margin-bottom: 0.2rem;">'
-                    f'<span style="color: #94a3b8; font-size: 0.78rem;">'
+                    f'<span style="color: {TEXT_SECONDARY}; font-size: 0.78rem;">'
                     f'{action_entry} on {entry_d}</span>'
-                    f'<span style="color: #e2e8f0; font-weight: 600; '
+                    f'<span style="color: {TEXT_PRIMARY}; font-weight: 600; '
                     f'font-size: 0.78rem;">${t["entry_price"]:.2f}</span>'
                     f'</div>'
                     # Exit row
                     f'<div style="display: flex; justify-content: space-between; '
                     f'margin-bottom: 0.35rem;">'
-                    f'<span style="color: #94a3b8; font-size: 0.78rem;">'
+                    f'<span style="color: {TEXT_SECONDARY}; font-size: 0.78rem;">'
                     f'{action_exit} on {exit_d}</span>'
                     f'<span style="color: {pnl_color}; font-weight: 600; '
                     f'font-size: 0.78rem;">${t["exit_price"]:.2f}</span>'
                     f'</div>'
                     # P&L row
-                    f'<div style="border-top: 1px solid rgba(148,163,184,0.15); '
+                    f'<div style="border-top: 1px solid {BORDER_SUBTLE}; '
                     f'padding-top: 0.3rem;">'
                     f'<span style="color: {pnl_color}; font-weight: 600; '
                     f'font-size: 0.85rem;">'
@@ -614,15 +621,15 @@ def _render_postmortem_sidebar():
                             links_html = "".join(
                                 f'<div style="margin-bottom: 0.25rem;">'
                                 f'<a href="{c["url"]}" target="_blank" '
-                                f'style="color: #60a5fa; font-size: 0.72rem; '
+                                f'style="color: {LINK}; font-size: 0.72rem; '
                                 f'text-decoration: none;">{c["title"]}</a></div>'
                                 for c in trade_cites
                             )
                             st.markdown(
                                 f'<div style="border-top: 1px solid '
-                                f'rgba(148,163,184,0.15); padding-top: 0.4rem; '
+                                f'{BORDER_SUBTLE}; padding-top: 0.4rem; '
                                 f'margin-top: 0.5rem;">'
-                                f'<div style="color: #94a3b8; font-size: 0.72rem; '
+                                f'<div style="color: {TEXT_SECONDARY}; font-size: 0.72rem; '
                                 f'font-weight: 600; margin-bottom: 0.3rem;">'
                                 f'Sources</div>{links_html}</div>',
                                 unsafe_allow_html=True,
@@ -694,8 +701,8 @@ _render_postmortem_sidebar()
 
 if "results" not in st.session_state:
     st.markdown(
-        '<p style="color: #64748b; margin-top: 3rem; text-align: center;">'
-        'Select a strategy and click <b>Run Backtest</b> to begin.</p>',
+        f'<p style="color: {TEXT_DIM}; margin-top: 3rem; text-align: center;">'
+        f'Select a strategy and click <b>Run Backtest</b> to begin.</p>',
         unsafe_allow_html=True,
     )
     st.stop()
@@ -704,7 +711,7 @@ all_results = st.session_state["results"]
 ticker_names = st.session_state["ticker_names"]
 
 st.markdown(
-    f'<p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem;">'
+    f'<p style="color: {TEXT_DIM}; font-size: 0.85rem; margin-bottom: 1.5rem;">'
     f'{st.session_state["strategy_name"]}</p>',
     unsafe_allow_html=True,
 )
