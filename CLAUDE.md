@@ -26,7 +26,8 @@ crop_prediction/
       yahoo_finance.py         -- Yahoo Finance multi-ticker futures OHLCV
       open_meteo.py            -- Open-Meteo daily temp/precip for Corn Belt
   warehouse/
-    warehouse.db                  -- SQLite database (validated data only)
+    warehouse.db               -- data + catalog DB (rebuildable: data, ETL, catalogs)
+    app.db                     -- app state DB (permanent: runs, shares, AI usage)
     landing/                   -- immutable CSV files (audit trail)
       yahoo_finance/           -- one folder per ticker
       open_meteo/
@@ -59,9 +60,17 @@ crop_prediction/
     catalog_agent.py           -- AI feature catalog agent (Claude Haiku, structured JSON)
     trade_analyst.py           -- AI trade post-mortem agent (Claude Sonnet, web search)
     charts.py                  -- Plotly chart builders (pure functions, no Streamlit)
+    paper_agent/               -- paper-to-strategy pipeline (extract, map, generate)
+      extractor.py             -- PDF/text → strategy spec (Claude Sonnet)
+      mapper.py                -- spec features → data catalog feasibility (Claude Sonnet)
+      generator.py             -- spec + map → Python strategy code (Claude Sonnet)
+      demos/                   -- built-in demo papers for POC
     pages/
       1_Strategy_Dashboard.py  -- backtest results, risk metrics, charts
       2_Data_Explorer.py       -- browse price, weather, and feature data (+ AI catalog)
+      3_Paper_Upload.py        -- paper-to-strategy pipeline UI (5-step workflow)
+      4_Strategy_Leaderboard.py -- persistent backtest run history and comparison
+      5_AI_Usage.py            -- AI API cost/token tracking dashboard
 ```
 
 ## Rules
@@ -74,6 +83,11 @@ crop_prediction/
 - Open-Meteo free tier: 600 calls/min, 10k/day, 300k/month. Always sleep between API calls per config.
 
 ### Data Format
+- Two SQLite databases in `warehouse/`:
+  - `warehouse.db` — data + catalogs (rebuildable): `futures_daily`, `weather_daily`, `validation_log`, `strategies`, `data_catalog`, `feature_catalog`.
+  - `app.db` — application state (permanent, never rebuilt): `shared_analyses`, `backtest_runs`, `ai_usage`.
+- Use `get_connection()` / `init_tables()` for warehouse.db; `get_app_connection()` / `init_app_tables()` for app.db.
+- `--rebuild` deletes warehouse.db only; app.db is untouched.
 - SQLite (`warehouse/warehouse.db`) contains only validated data. Downstream code reads from SQLite via `pd.read_sql()`.
 - CSV landing zone (`warehouse/landing/`) stores raw, unvalidated CSV scraper output as an audit trail. Never modify landing CSV files.
 - Validation runs between landing write and DB insert. Rows failing error-severity checks are rejected; warnings are logged but inserted.

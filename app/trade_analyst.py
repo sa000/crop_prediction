@@ -1,4 +1,4 @@
-"""Trade post-mortem analyst powered by Claude Sonnet with web search.
+"""Trade post-mortem analyst powered by Claude Haiku with web search.
 
 Identifies the best and worst trades from a backtest, uses Claude with
 web search to research what happened in commodity markets during those
@@ -6,12 +6,13 @@ periods, and returns a narrative summary with cited sources. No Streamlit
 imports -- pure functions and one API entry point."""
 
 import logging
+import re
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-haiku-4-5"
+MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 4096
 
 SYSTEM_PROMPT = """You are a commodities market analyst writing a post-mortem on \
@@ -116,16 +117,15 @@ def parse_response(response) -> dict:
     Patterns section) gets its own text block keyed by label.
 
     Args:
-        response: anthropic Messages response object.
+        response: Anthropic Messages response object.
 
     Returns:
         Dict with:
         - narrative: full text (str)
         - sections: dict mapping label -> text (e.g. "Best Trade #1" -> "...")
-        - citations: list of dicts with title, url, cited_text
+        - citations: list of dicts with title, url
+        - section_citations: dict mapping section key -> list of citation dicts
     """
-    import re
-
     # Collect all search result URLs and narrative text
     narrative_parts = []
     all_search_results = []
@@ -170,9 +170,7 @@ def parse_response(response) -> dict:
             if part:
                 sections["_preamble"] = part
 
-    # Match citations to sections by keyword relevance. Extract
-    # significant words from each section body, then score each
-    # search result by how many of those words appear in its title.
+    # Match citations to sections by keyword relevance
     STOP_WORDS = {
         "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
         "for", "of", "with", "by", "from", "as", "is", "was", "were",
@@ -190,12 +188,10 @@ def parse_response(response) -> dict:
             section_citations[key] = []
             continue
 
-        # Extract meaningful words from section body
         words = set(
             w.lower() for w in re.findall(r"[A-Za-z]{3,}", body)
         ) - STOP_WORDS
 
-        # Score each search result by title word overlap
         scored = []
         for r in unique_results:
             title_words = set(
@@ -241,7 +237,7 @@ def analyze_trades(
 ) -> dict:
     """Run AI post-mortem analysis on the best and worst trades.
 
-    Selects notable trades, builds context, calls Claude with web search
+    Selects notable trades, builds context, calls Claude Haiku with web search
     to research market events, and returns a narrative with sources.
 
     Args:
@@ -271,7 +267,6 @@ def analyze_trades(
 
     logger.info("Post-mortem: selected %d notable trades", len(notable))
 
-    logger.info("Post-mortem: building trade context for %s (%s)", commodity, ticker)
     context = build_trade_context(notable, ticker, commodity)
     system = SYSTEM_PROMPT.format(commodity=commodity, ticker=ticker)
 
@@ -308,6 +303,15 @@ def analyze_trades(
             "trades": notable,
             "error": f"Unexpected error: {e}",
         }
+
+    # Log token usage
+    try:
+        from app.ai_usage import log_usage
+        usage = response.usage
+        log_usage("anthropic", MODEL, "trade_postmortem",
+                  usage.input_tokens, usage.output_tokens)
+    except Exception:
+        logger.debug("Could not log AI usage", exc_info=True)
 
     logger.info("Post-mortem: parsing API response")
     parsed = parse_response(response)

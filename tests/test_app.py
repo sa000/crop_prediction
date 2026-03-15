@@ -1,11 +1,19 @@
 """Tests for app modules: strategy discovery, chart builders, trade analyst, imports."""
 
+import json
+import uuid
+
 import pandas as pd
 import plotly.graph_objects as go
 
 from app.discovery import discover_strategies, get_strategy_metadata, sync_strategies_to_db
 from app.trade_analyst import select_notable_trades, build_trade_context
-from etl.db import get_connection, init_tables, list_strategies
+from etl.db import (
+    get_connection, init_tables, list_strategies,
+    get_app_connection, init_app_tables,
+    save_backtest_run, load_backtest_run, list_backtest_runs,
+    update_backtest_run_star, update_backtest_run_notes, delete_backtest_run,
+)
 from strategies import analytics
 
 
@@ -58,15 +66,15 @@ class TestDiscovery:
             assert "unlinked" in features, f"{name} missing unlinked"
 
     def test_sync_strategies_to_db(self):
-        """sync_strategies_to_db populates the strategies table with all 3 strategies."""
+        """sync_strategies_to_db populates the strategies table with all strategies."""
         conn = get_connection()
         init_tables(conn)
         strategies = sync_strategies_to_db(conn)
         rows = list_strategies(conn)
         conn.close()
 
-        assert len(strategies) == 3
-        assert len(rows) == 3
+        assert len(strategies) >= 3
+        assert len(rows) >= 3
         db_names = {row["name"] for row in rows}
         assert "Weather Precipitation" in db_names
         assert "Sma Crossover" in db_names
@@ -225,6 +233,111 @@ class TestTradeAnalyst:
         assert "Bought" in context
         assert "Sold" in context
         assert "$" in context
+
+
+class TestBacktestRunDB:
+    """Verify backtest_runs CRUD operations."""
+
+    def _save_test_run(self, conn, run_id=None, strategy_name="Test Strategy",
+                       ticker="ZC=F", ticker_name="Corn"):
+        """Save a test backtest run and return its ID."""
+        rid = run_id or uuid.uuid4().hex
+        save_backtest_run(
+            conn, rid,
+            strategy_name=strategy_name,
+            strategy_module="strategies.test",
+            run_type="manual",
+            ticker=ticker,
+            ticker_name=ticker_name,
+            date_range_start="2025-01-02",
+            date_range_end="2025-12-31",
+            capital=100_000_000,
+            risk_pct=0.01,
+            cost_per_trade=0.0,
+            total_pnl=500_000.0,
+            sharpe_ratio=1.25,
+            max_drawdown_pct=-2.5,
+            win_rate=0.6,
+            num_trades=10,
+            sortino_ratio=1.5,
+            calmar_ratio=0.8,
+            profit_factor=1.9,
+            result_data='[{"date":"2025-01-02","Close":400}]',
+            trade_log_data='[]',
+            stats_data=json.dumps({"total_pnl": 500000}),
+        )
+        return rid
+
+    def test_save_and_load(self):
+        """Round-trip save + load verifies all fields persist."""
+        conn = get_app_connection()
+        init_app_tables(conn)
+        rid = self._save_test_run(conn)
+
+        row = load_backtest_run(conn, rid)
+        assert row is not None
+        assert row["strategy_name"] == "Test Strategy"
+        assert row["ticker"] == "ZC=F"
+        assert row["ticker_name"] == "Corn"
+        assert row["total_pnl"] == 500_000.0
+        assert row["sharpe_ratio"] == 1.25
+        assert row["num_trades"] == 10
+        assert row["starred"] == 0
+        assert row["run_by"] == "Sakib"
+
+        # cleanup
+        delete_backtest_run(conn, rid)
+        conn.close()
+
+    def test_list_runs(self):
+        """list_backtest_runs returns saved runs without JSON blobs."""
+        conn = get_app_connection()
+        init_app_tables(conn)
+        rid = self._save_test_run(conn)
+
+        rows = list_backtest_runs(conn, strategy_name="Test Strategy")
+        assert len(rows) >= 1
+        found = [r for r in rows if r["id"] == rid]
+        assert len(found) == 1
+        # JSON blobs should be excluded
+        assert "result_data" not in found[0]
+        assert "trade_log_data" not in found[0]
+        assert "stats_data" not in found[0]
+
+        delete_backtest_run(conn, rid)
+        conn.close()
+
+    def test_star_and_notes(self):
+        """Toggle star and update notes, verify persistence."""
+        conn = get_app_connection()
+        init_app_tables(conn)
+        rid = self._save_test_run(conn)
+
+        update_backtest_run_star(conn, rid, 1)
+        row = load_backtest_run(conn, rid)
+        assert row["starred"] == 1
+
+        update_backtest_run_star(conn, rid, 0)
+        row = load_backtest_run(conn, rid)
+        assert row["starred"] == 0
+
+        update_backtest_run_notes(conn, rid, "great run")
+        row = load_backtest_run(conn, rid)
+        assert row["notes"] == "great run"
+
+        delete_backtest_run(conn, rid)
+        conn.close()
+
+    def test_delete(self):
+        """Delete a run and verify it's gone."""
+        conn = get_app_connection()
+        init_app_tables(conn)
+        rid = self._save_test_run(conn)
+
+        assert load_backtest_run(conn, rid) is not None
+        delete_backtest_run(conn, rid)
+        assert load_backtest_run(conn, rid) is None
+        conn.close()
 
 
 class TestModuleImports:

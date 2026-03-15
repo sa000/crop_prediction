@@ -203,8 +203,8 @@ with tab_features:
     # --- AI Catalog Agent ---
     has_api_key = False
     try:
-        api_key = st.secrets["ANTHROPIC_API_KEY"]
-        if api_key and not api_key.startswith("sk-ant-your-key"):
+        api_key = st.secrets["DEEPSEEK_API_KEY"]
+        if api_key:
             has_api_key = True
     except (KeyError, FileNotFoundError):
         pass

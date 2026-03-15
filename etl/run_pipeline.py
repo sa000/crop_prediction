@@ -164,6 +164,9 @@ def rebuild():
     issue_count = conn.execute("SELECT COUNT(*) FROM validation_log").fetchone()[0]
     logger.info("validation_log: %d issues recorded", issue_count)
 
+    # Populate the data catalog from freshly rebuilt data
+    db.populate_data_catalog(conn)
+
     conn.close()
     logger.info("Rebuild complete")
 

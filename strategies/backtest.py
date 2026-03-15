@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 def compute_positions(df: pd.DataFrame) -> pd.DataFrame:
     """Derive held positions from the signal column.
 
-    Position on day T is determined by the signal generated at close of day T-1.
-    This one-day delay reflects realistic execution.
+    Position on day T is the signal on day T. Features are already point-in-time
+    (lagged by 1 day in the feature pipeline), so signals can be computed and
+    executed on the same day.
 
     Args:
         df: DataFrame with a signal column.
@@ -25,7 +26,7 @@ def compute_positions(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with additional position column.
     """
     df = df.copy()
-    df["position"] = df["signal"].shift(1).fillna(0).astype(int)
+    df["position"] = df["signal"].fillna(0).astype(int)
     return df
 
 

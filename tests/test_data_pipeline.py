@@ -6,8 +6,12 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from etl.db import (
+    get_connection, init_tables,
     upsert_strategy, list_strategies, get_strategy,
+    get_app_connection, init_app_tables,
     save_shared_analysis, load_shared_analysis,
+    populate_data_catalog, list_data_catalog,
+    populate_feature_catalog, list_feature_catalog,
 )
 from features import store
 from features.query import read_parquet
@@ -18,7 +22,7 @@ class TestDatabase:
     """Verify SQLite warehouse tables and data integrity."""
 
     def test_db_tables_exist(self, db_connection):
-        """All expected tables exist in SQLite."""
+        """All expected warehouse tables exist in SQLite."""
         cursor = db_connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )
@@ -27,7 +31,8 @@ class TestDatabase:
         assert "weather_daily" in tables
         assert "validation_log" in tables
         assert "strategies" in tables
-        assert "shared_analyses" in tables
+        assert "data_catalog" in tables
+        assert "feature_catalog" in tables
 
     def test_load_prices_shape(self, corn_prices):
         """Corn prices are non-empty with expected columns and 1000+ rows."""
@@ -169,17 +174,22 @@ class TestStrategiesTable:
 
 
 class TestSharedAnalyses:
-    """Verify shared analyses save/load operations."""
+    """Verify shared analyses save/load operations in app.db."""
 
-    def test_shared_analyses_table_exists(self, db_connection):
-        """shared_analyses table is in sqlite_master."""
-        cursor = db_connection.execute(
+    def test_shared_analyses_table_exists(self):
+        """shared_analyses table exists in app.db."""
+        conn = get_app_connection()
+        init_app_tables(conn)
+        cursor = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='shared_analyses'"
         )
         assert cursor.fetchone() is not None
+        conn.close()
 
-    def test_save_and_load_shared_analysis(self, db_connection, backtest_result):
+    def test_save_and_load_shared_analysis(self, backtest_result):
         """Round-trip save and load of a shared analysis."""
+        conn = get_app_connection()
+        init_app_tables(conn)
         result_df, trade_log, stats = backtest_result
 
         result_json = result_df.reset_index().to_json(orient="records", date_format="iso")
@@ -192,7 +202,7 @@ class TestSharedAnalyses:
 
         share_id = "test_abc12345"
         save_shared_analysis(
-            db_connection, share_id,
+            conn, share_id,
             strategy_name="Weather Precipitation",
             ticker_symbol="ZC=F",
             ticker_name="Corn",
@@ -204,7 +214,7 @@ class TestSharedAnalyses:
             stats_data=stats_json,
         )
 
-        row = load_shared_analysis(db_connection, share_id)
+        row = load_shared_analysis(conn, share_id)
         assert row is not None
         assert row["strategy_name"] == "Weather Precipitation"
         assert row["ticker_symbol"] == "ZC=F"
@@ -215,13 +225,65 @@ class TestSharedAnalyses:
         assert loaded_stats["num_trades"] == stats["num_trades"]
 
         # Clean up
-        db_connection.execute("DELETE FROM shared_analyses WHERE id = ?", (share_id,))
-        db_connection.commit()
+        conn.execute("DELETE FROM shared_analyses WHERE id = ?", (share_id,))
+        conn.commit()
+        conn.close()
 
-    def test_load_nonexistent_share(self, db_connection):
+    def test_load_nonexistent_share(self):
         """Querying a fake share ID returns None."""
-        result = load_shared_analysis(db_connection, "nonexistent_id")
+        conn = get_app_connection()
+        init_app_tables(conn)
+        result = load_shared_analysis(conn, "nonexistent_id")
         assert result is None
+        conn.close()
+
+
+class TestDataCatalog:
+    """Verify data_catalog populate and list operations."""
+
+    def test_populate_and_list(self, db_connection):
+        """populate_data_catalog inserts entries that list_data_catalog returns."""
+        count = populate_data_catalog(db_connection)
+        assert count >= 3  # at least 3 futures tickers
+
+        rows = list_data_catalog(db_connection)
+        assert len(rows) >= 3
+        # Check a futures entry exists
+        futures_entries = [r for r in rows if r["source_type"] == "futures"]
+        assert len(futures_entries) >= 1
+        assert futures_entries[0]["provider"] == "Yahoo Finance"
+        assert futures_entries[0]["row_count"] > 0
+
+        # Check a weather entry exists
+        weather_entries = [r for r in rows if r["source_type"] == "weather"]
+        assert len(weather_entries) >= 1
+        assert weather_entries[0]["provider"] == "Open-Meteo"
+
+
+class TestFeatureCatalog:
+    """Verify feature_catalog populate and list operations."""
+
+    def test_populate_and_list(self, db_connection):
+        """populate_feature_catalog round-trips metadata into the table."""
+        from features import store
+        metadata_df = store.read_metadata()
+        assert not metadata_df.empty
+
+        count = populate_feature_catalog(db_connection, metadata_df)
+        assert count > 0
+
+        rows = list_feature_catalog(db_connection)
+        assert len(rows) == count
+
+        # Filter by category
+        momentum = list_feature_catalog(db_connection, category="momentum")
+        assert len(momentum) > 0
+        assert all(r["category"] == "momentum" for r in momentum)
+
+        # Filter by entity
+        corn = list_feature_catalog(db_connection, entity="corn")
+        assert len(corn) > 0
+        assert all(r["entity"] == "corn" for r in corn)
 
 
 class TestRobustness:

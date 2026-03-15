@@ -1,7 +1,7 @@
-"""Feature catalog agent powered by Claude Haiku.
+"""Feature catalog agent powered by DeepSeek.
 
 Builds a structured catalog context from the feature metadata Parquet,
-sends it to Claude Haiku with a user question, and returns structured
+sends it to DeepSeek with a user question, and returns structured
 JSON with an answer and matching features. No Streamlit imports.
 """
 
@@ -12,8 +12,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "deepseek-chat"
 MAX_TOKENS = 4096
+BASE_URL = "https://api.deepseek.com"
 
 SYSTEM_PROMPT = """You are a feature catalog assistant for an agricultural commodity futures \
 trading platform. You help users discover and understand features available \
@@ -107,44 +108,54 @@ def build_catalog_context(metadata_df: pd.DataFrame) -> str:
 
 
 def ask(question: str, metadata_df: pd.DataFrame, api_key: str) -> dict:
-    """Send a catalog question to Claude Haiku and return structured results.
+    """Send a catalog question to DeepSeek and return structured results.
 
     Args:
         question: User's natural language question about features.
         metadata_df: Feature metadata DataFrame.
-        api_key: Anthropic API key.
+        api_key: DeepSeek API key.
 
     Returns:
         Dict with "answer" (str) and "features" (list of dicts with
         name, category, entity, description).
     """
-    import anthropic
+    from openai import OpenAI, APIError
 
     catalog_context = build_catalog_context(metadata_df)
     system = SYSTEM_PROMPT.format(catalog_context=catalog_context)
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = OpenAI(api_key=api_key, base_url=BASE_URL)
 
     try:
-        response = client.messages.create(
+        response = client.chat.completions.create(
             model=MODEL,
-            system=system,
-            messages=[{"role": "user", "content": question}],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": question},
+            ],
             max_tokens=MAX_TOKENS,
         )
-    except anthropic.APIError:
-        logger.exception("Anthropic API error")
+    except APIError:
+        logger.exception("DeepSeek API error")
         return {
             "answer": "Failed to reach the AI service. Please try again.",
             "features": [],
         }
 
-    text = response.content[0].text.strip()
+    # Log token usage
+    try:
+        from app.ai_usage import log_usage
+        usage = response.usage
+        log_usage("deepseek", MODEL, "catalog_agent",
+                  usage.prompt_tokens, usage.completion_tokens)
+    except Exception:
+        logger.debug("Could not log AI usage", exc_info=True)
+
+    text = response.choices[0].message.content.strip()
 
     # Strip markdown code fences if present
     if text.startswith("```"):
         lines = text.split("\n")
-        # Remove first line (```json) and last line (```)
         lines = [l for l in lines[1:] if l.strip() != "```"]
         text = "\n".join(lines).strip()
 

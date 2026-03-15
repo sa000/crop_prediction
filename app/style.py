@@ -101,11 +101,12 @@ CUSTOM_CSS = f"""
         border: 1px solid {BORDER};
         border-radius: 10px;
         padding: 14px 18px;
-        transition: background 0.2s ease, border-color 0.2s ease;
+        transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     }}
     div[data-testid="stMetric"]:hover {{
         background: {BG_CARD_HOVER};
         border-color: rgba(148, 163, 184, 0.14);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.10);
     }}
     div[data-testid="stMetric"] label {{
         color: {TEXT_SECONDARY} !important;
@@ -151,11 +152,12 @@ CUSTOM_CSS = f"""
         border: none;
         border-radius: 8px;
         font-weight: 500;
-        transition: background-color 0.2s ease, transform 0.15s ease;
+        transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
     }}
     .stButton > button[kind="primary"]:hover {{
         background-color: {ACCENT_HOVER};
         transform: translateY(-1px);
+        box-shadow: 0 0 16px rgba(99, 102, 241, 0.45);
     }}
 
     /* --- Tabs --- */
@@ -168,9 +170,16 @@ CUSTOM_CSS = f"""
         border-bottom-color: {ACCENT} !important;
     }}
 
+    /* --- Entrance animation --- */
+    @keyframes fadeInUp {{
+        from {{ opacity: 0; transform: translateY(12px); }}
+        to   {{ opacity: 1; transform: translateY(0); }}
+    }}
+
     /* --- Remove default padding at top --- */
     .block-container {{
         padding-top: 2rem;
+        animation: fadeInUp 0.45s ease-out;
     }}
 
     /* --- Chart containers (components.html iframes) --- */
@@ -202,6 +211,44 @@ CUSTOM_CSS = f"""
         content: "Home";
         font-size: 0.875rem !important;
         line-height: 1.6 !important;
+    }}
+
+    /* --- Hero gradient text --- */
+    .hero-gradient {{
+        background: linear-gradient(135deg, {ACCENT}, #8b5cf6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }}
+
+    /* --- Focus ring for accessibility --- */
+    .stButton > button:focus-visible,
+    .stSelectbox > div > div:focus-visible,
+    .stTextInput > div > div > input:focus-visible,
+    .stTabs [data-baseweb="tab"]:focus-visible {{
+        outline: 2px solid rgba(99, 102, 241, 0.6);
+        outline-offset: 2px;
+    }}
+
+    /* --- Custom scrollbar --- */
+    ::-webkit-scrollbar {{
+        width: 8px;
+        height: 8px;
+    }}
+    ::-webkit-scrollbar-track {{
+        background: {BG_DARK};
+    }}
+    ::-webkit-scrollbar-thumb {{
+        background: {TEXT_FAINT};
+        border-radius: 4px;
+    }}
+    ::-webkit-scrollbar-thumb:hover {{
+        background: {TEXT_DIM};
+    }}
+    /* Firefox */
+    * {{
+        scrollbar-width: thin;
+        scrollbar-color: {TEXT_FAINT} {BG_DARK};
     }}
 </style>
 """

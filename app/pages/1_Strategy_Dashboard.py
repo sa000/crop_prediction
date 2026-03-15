@@ -27,7 +27,9 @@ from app.style import (
 )
 from etl.db import (
     get_connection, init_tables, load_prices,
+    get_app_connection, init_app_tables,
     save_shared_analysis, load_shared_analysis,
+    save_backtest_run, load_backtest_run,
 )
 from features.query import list_tickers, read_strategy_features
 from strategies import analytics
@@ -96,6 +98,46 @@ def _auto_copy_share_link(share_id: str):
     }})();
     </script>
     """, unsafe_allow_javascript=True)
+
+
+def _auto_log_run(strategy_name, module_name, ticker_symbol, ticker_name,
+                   result_df, trade_log, stats, capital, risk_pct, cost_per_trade,
+                   run_type="manual"):
+    """Auto-log a backtest run to the leaderboard (fire-and-forget)."""
+    try:
+        run_id = uuid.uuid4().hex
+        r_json, tl_json, s_json = _serialize_result(result_df, trade_log, stats)
+        date_start = str(result_df.index[0].date()) if len(result_df) > 0 else None
+        date_end = str(result_df.index[-1].date()) if len(result_df) > 0 else None
+        conn = get_app_connection()
+        init_app_tables(conn)
+        save_backtest_run(
+            conn, run_id,
+            strategy_name=strategy_name,
+            strategy_module=module_name,
+            run_type=run_type,
+            ticker=ticker_symbol,
+            ticker_name=ticker_name,
+            date_range_start=date_start,
+            date_range_end=date_end,
+            capital=capital,
+            risk_pct=risk_pct,
+            cost_per_trade=cost_per_trade,
+            total_pnl=stats.get("total_pnl"),
+            sharpe_ratio=stats.get("sharpe_ratio"),
+            max_drawdown_pct=stats.get("max_drawdown_pct"),
+            win_rate=stats.get("win_rate"),
+            num_trades=stats.get("num_trades"),
+            sortino_ratio=stats.get("sortino_ratio"),
+            calmar_ratio=stats.get("calmar_ratio"),
+            profit_factor=stats.get("profit_factor"),
+            result_data=r_json,
+            trade_log_data=tl_json,
+            stats_data=s_json,
+        )
+        conn.close()
+    except Exception:
+        pass
 
 
 inject_css()
@@ -175,7 +217,7 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
             )
             fmt_dd["max_dd_dollars"] = fmt_dd["max_dd_dollars"].map("${:,.0f}".format)
             fmt_dd["max_dd_pct"] = fmt_dd["max_dd_pct"].map("{:.3f}%".format)
-            st.dataframe(fmt_dd, use_container_width=True, hide_index=True)
+            st.dataframe(fmt_dd, width="stretch", hide_index=True)
 
     # Alpha decay
     st.markdown("### Alpha Decay")
@@ -209,7 +251,7 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
                 else (f"color: {RED}" if isinstance(v, (int, float)) and v < 0 else ""),
                 subset=["pnl"],
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=400,
         )
@@ -295,7 +337,7 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
                 st.markdown("<div style='height: 1.6rem'></div>", unsafe_allow_html=True)
                 if st.button(
                     "Re-run", key=f"run_mc_{ticker_key}",
-                    type="primary", use_container_width=True,
+                    type="primary", width="stretch",
                 ):
                     with st.spinner(f"Running {n_paths} Monte Carlo paths..."):
                         mc_result = run_monte_carlo(
@@ -350,7 +392,7 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
                 st.markdown("<div style='height: 1.6rem'></div>", unsafe_allow_html=True)
                 if st.button(
                     "Re-run", key=f"run_bs_{ticker_key}",
-                    type="primary", use_container_width=True,
+                    type="primary", width="stretch",
                 ):
                     with st.spinner(f"Running {bs_n_paths} bootstrap reshuffles..."):
                         bs_result = run_bootstrap(
@@ -410,13 +452,47 @@ def render_results(result_df, trade_log, stats, rs, rw, mr, dd, feature_df=None,
         show_chart(charts.regime_comparison_chart(regime), height=460)
 
 
+# --- Leaderboard drill-down detection ---
+leaderboard_run_id = st.session_state.pop("leaderboard_run_id", None)
+if leaderboard_run_id:
+    app_conn = get_app_connection()
+    init_app_tables(app_conn)
+    row = load_backtest_run(app_conn, leaderboard_run_id)
+    app_conn.close()
+
+    if not row:
+        st.error("Leaderboard run not found.")
+        st.stop()
+
+    result_df, trade_log, stats = _deserialize_result(row)
+
+    rs = analytics.rolling_sharpe(result_df)
+    rw = analytics.rolling_win_rate(trade_log, result_df)
+    mr = analytics.monthly_returns(result_df, row["capital"])
+    dd = analytics.drawdown_periods(result_df)
+
+    created = row["created_at"][:10]
+    st.markdown(
+        f'<div style="background: linear-gradient(135deg, {ACCENT_DIM}, rgba(139,92,246,0.10)); '
+        f'border: 1px solid {ACCENT}33; border-radius: 10px; padding: 1rem 1.25rem; '
+        f'margin-bottom: 1.5rem;">'
+        f'<span style="color: {BADGE}; font-weight: 600;">Leaderboard Run</span>'
+        f'<span style="color: {TEXT_SECONDARY};"> &mdash; {row["strategy_name"]} on {row["ticker_name"]}'
+        f' &mdash; {created} &mdash; by {row["run_by"]}</span></div>',
+        unsafe_allow_html=True,
+    )
+    st.page_link("pages/4_Strategy_Leaderboard.py", label="Back to Leaderboard")
+
+    render_results(result_df, trade_log, stats, rs, rw, mr, dd)
+    st.stop()
+
 # --- Shared view detection ---
 share_id = st.query_params.get("share")
 if share_id:
-    conn = get_connection()
-    init_tables(conn)
-    row = load_shared_analysis(conn, share_id)
-    conn.close()
+    app_conn = get_app_connection()
+    init_app_tables(app_conn)
+    row = load_shared_analysis(app_conn, share_id)
+    app_conn.close()
 
     if not row:
         st.error("Shared analysis not found.")
@@ -487,7 +563,7 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-run = st.sidebar.button("Run Backtest", type="primary", use_container_width=True)
+run = st.sidebar.button("Run Backtest", type="primary", width="stretch")
 
 
 def _render_postmortem_sidebar():
@@ -516,11 +592,11 @@ def _render_postmortem_sidebar():
     if not has_pm_key:
         st.sidebar.info(
             "Add your Anthropic API key to .streamlit/secrets.toml "
-            "to enable AI post-mortem analysis."
+            "to enable AI post-mortem analysis (uses web search)."
         )
         return
 
-    if st.sidebar.button("AI Post-Mortem Analysis", use_container_width=True):
+    if st.sidebar.button("AI Post-Mortem Analysis", width="stretch"):
         for name in pm_tickers:
             if name not in pm_results:
                 continue
@@ -697,6 +773,13 @@ if run:
     st.session_state["strategy_name"] = selected_name
     st.session_state["ticker_names"] = selected_tickers
 
+    for name in selected_tickers:
+        ticker_symbol = TICKER_MAP[name]
+        result_df, trade_log, stats = all_results[name][:3]
+        _auto_log_run(selected_name, strategy_module.__name__,
+                      ticker_symbol, name, result_df, trade_log, stats,
+                      CAPITAL, RISK_PCT, COST_PER_TRADE)
+
 _render_postmortem_sidebar()
 
 if "results" not in st.session_state:
@@ -721,15 +804,15 @@ for tab, name in zip(tabs, ticker_names):
     with tab:
         _, share_col = st.columns([10, 2])
         with share_col:
-            if st.button("Share", key=f"share_{name}", use_container_width=True):
+            if st.button("Share", key=f"share_{name}", width="stretch"):
                 sid = uuid.uuid4().hex[:12]
                 result_df, trade_log, stats = all_results[name][:3]
                 r_json, tl_json, s_json = _serialize_result(result_df, trade_log, stats)
                 ticker_symbol = TICKER_MAP.get(name, NAME_TO_SYMBOL.get(name, name))
-                conn = get_connection()
-                init_tables(conn)
+                app_conn = get_app_connection()
+                init_app_tables(app_conn)
                 save_shared_analysis(
-                    conn, sid,
+                    app_conn, sid,
                     strategy_name=st.session_state["strategy_name"],
                     ticker_symbol=ticker_symbol,
                     ticker_name=name,
@@ -740,7 +823,7 @@ for tab, name in zip(tabs, ticker_names):
                     trade_log_data=tl_json,
                     stats_data=s_json,
                 )
-                conn.close()
+                app_conn.close()
                 st.session_state[f"shared_id_{name}"] = sid
 
         if f"shared_id_{name}" in st.session_state:

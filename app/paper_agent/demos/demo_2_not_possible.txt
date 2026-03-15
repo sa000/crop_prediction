@@ -1,0 +1,103 @@
+Title: Soil Moisture and Satellite Vegetation Indices as Predictors of Corn Futures
+Authors: A. Patel, M. Nakamura, S. Okoye
+Journal: Quantitative Agriculture Review, Vol. 18, 2024
+
+Abstract
+
+We combine two novel data sources -- USDA soil moisture readings and MODIS
+satellite-derived Normalized Difference Vegetation Index (NDVI) -- to predict
+corn futures returns. Our composite Crop Health Index (CHI) outperforms
+traditional weather-based signals by capturing below-surface moisture stress
+and above-surface canopy health simultaneously. Backtested over 2012-2024,
+the strategy achieves a Sharpe ratio of 1.8 with maximum drawdown of 5.1%.
+
+1. Introduction
+
+Traditional weather-based trading signals for agricultural commodities rely on
+precipitation and temperature data. While useful, these surface-level metrics
+miss two critical dimensions of crop health:
+
+(a) Soil moisture -- the water actually available to plant roots, which
+    depends on soil type, drainage, and cumulative weather patterns rather
+    than any single day's rainfall.
+
+(b) Vegetation health -- the photosynthetic activity of the crop canopy,
+    observable via satellite imagery, which integrates all stress factors
+    (drought, heat, disease, pests) into a single metric.
+
+We argue that combining these two sub-surface and above-surface indicators
+creates a more robust and earlier signal than precipitation alone.
+
+2. Data
+
+2.1 Soil Moisture
+
+We use the USDA Soil Moisture Active Passive (SMAP) dataset, which provides
+daily volumetric soil moisture readings at 9km resolution. We aggregate
+readings across Corn Belt grid cells (Iowa, Illinois, Nebraska) to form a
+daily Corn Belt soil moisture index (SMI) in units of m3/m3.
+
+2.2 NDVI
+
+We use 16-day composite NDVI from the MODIS Terra satellite (MOD13Q1 product)
+at 250m resolution. NDVI ranges from -1 to 1, with healthy vegetation
+typically above 0.6 during the growing season. We compute a Corn Belt average
+NDVI by aggregating pixels classified as cropland in the three target states.
+
+2.3 Corn Futures
+
+Corn futures prices from CME (ticker ZC), front-month continuous contract.
+
+3. Signal Construction
+
+3.1 Soil Moisture Anomaly
+
+We compute a 14-day rolling z-score of the daily Corn Belt SMI:
+
+    SMI_z(t) = (SMI(t) - mean_14d(t)) / std_14d(t)
+
+3.2 NDVI Deviation
+
+We compute the deviation of current NDVI from the 5-year seasonal average:
+
+    NDVI_dev(t) = NDVI(t) - NDVI_5yr_avg(day_of_year(t))
+
+3.3 Composite Crop Health Index
+
+We combine both signals into a single Crop Health Index:
+
+    CHI(t) = 0.6 * SMI_z(t) + 0.4 * NDVI_dev(t) / std(NDVI_dev)
+
+4. Trading Strategy
+
+Entry rules:
+- LONG when CHI < -1.0 (composite stress indicating supply threat)
+- SHORT when CHI > 1.0 (exceptional crop health indicating bearish supply)
+
+Exit rules:
+- Flatten when |CHI| < 0.3 (return to normal conditions)
+
+Parameters:
+- Stress threshold: -1.0
+- Health threshold: 1.0
+- Neutral band: -0.3 to 0.3
+- SMI weight: 0.6
+- NDVI weight: 0.4
+
+5. Results
+
+[Results tables omitted for brevity]
+
+The CHI strategy produces a Sharpe of 1.8 with 5.1% max drawdown. Decomposing
+the alpha, we find that 65% comes from the soil moisture component and 35%
+from NDVI. The strategy outperforms a precipitation-only baseline by 0.6
+Sharpe points, confirming that sub-surface and satellite data add material
+predictive value.
+
+6. Conclusion
+
+Soil moisture and satellite vegetation indices capture crop stress dimensions
+invisible to traditional weather data. Our Composite Crop Health Index
+provides earlier and more reliable signals for corn futures trading. We
+recommend that quantitative agricultural funds incorporate SMAP soil moisture
+and MODIS NDVI into their signal generation pipelines.

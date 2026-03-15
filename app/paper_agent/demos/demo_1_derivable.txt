@@ -1,0 +1,97 @@
+Title: Precipitation Stress Signals in Corn Futures
+Authors: J. Mitchell, R. Vasquez, L. Chen
+Journal: Journal of Agricultural Finance, Vol. 42, 2024
+
+Abstract
+
+We study the predictive power of precipitation anomalies on corn futures returns
+in the U.S. Corn Belt. Using daily weather station data from Iowa, Illinois, and
+Nebraska, we construct two precipitation-based signals: an 8-day rolling
+precipitation total and a 30-day precipitation anomaly z-score. We show that
+extreme deviations in either metric forecast statistically significant moves in
+nearby corn futures contracts over the subsequent 1-5 trading days.
+
+1. Introduction
+
+Corn is the most widely planted crop in the United States, with approximately
+90 million acres harvested annually. The Corn Belt -- spanning Iowa, Illinois,
+Indiana, Nebraska, and surrounding states -- accounts for the majority of
+domestic production. Weather during the growing season (May through September)
+is the single largest source of yield uncertainty.
+
+Prior work has established that precipitation extremes affect crop yields. Both
+drought (insufficient moisture during pollination) and flood (waterlogged fields
+preventing root development) can reduce yields by 20-40%. However, the
+literature has largely focused on seasonal totals rather than short-horizon
+rolling metrics that could be used for tactical trading.
+
+This paper fills that gap by constructing two rolling precipitation signals and
+testing their out-of-sample predictive power for corn futures returns.
+
+2. Data
+
+We obtain daily precipitation data from weather stations in Iowa, Illinois, and
+Nebraska for the period 2010-2025. For each day, we compute the mean
+precipitation across the three states to form a "Corn Belt aggregate" series.
+
+Corn futures prices are from the CME (ticker ZC), using the front-month
+continuous contract adjusted for rolls.
+
+3. Signal Construction
+
+3.1 Eight-Day Rolling Precipitation
+
+We compute the 8-day rolling sum of daily Corn Belt aggregate precipitation:
+
+    P_8d(t) = SUM(precip(t-7), precip(t-6), ..., precip(t))
+
+This 8-day window captures roughly one full synoptic weather cycle. Shorter
+windows (3-5 days) are too noisy; longer windows (14+ days) smooth out
+actionable events.
+
+3.2 Thirty-Day Precipitation Anomaly Z-Score
+
+We compute a rolling z-score of daily precipitation over a 30-day window:
+
+    Z_30d(t) = (precip(t) - mean_30d(t)) / std_30d(t)
+
+This captures how unusual current precipitation is relative to the recent past.
+
+4. Trading Strategy
+
+Our strategy operates on the corn futures front-month contract. Positions are
+sized as a fixed fraction of portfolio equity.
+
+Entry rules:
+- LONG when Z_30d < -1.5 (drought stress) AND P_8d < 0.2 inches (confirming
+  sustained dry conditions)
+- LONG when Z_30d > 2.0 (flood conditions) AND P_8d > 3.0 inches (confirming
+  sustained wet conditions)
+- SHORT when -0.3 < Z_30d < 0.3 (normal precipitation) -- no supply threat
+
+Exit rules:
+- Exit LONG when Z_30d returns to [-0.5, 0.5] range
+- Exit SHORT when |Z_30d| > 0.5
+
+Parameters:
+- Drought z-score threshold: -1.5
+- Flood z-score threshold: 2.0
+- Normal band: -0.3 to 0.3
+- Dry confirmation (P_8d): 0.2 inches
+- Wet confirmation (P_8d): 3.0 inches
+
+5. Results
+
+[Results tables omitted for brevity]
+
+Our backtest from 2010-2025 shows a Sharpe ratio of 1.2 with a maximum
+drawdown of 8.3%. The strategy is profitable in 62% of years, with the
+strongest performance during the 2012 drought and 2019 flooding events.
+
+6. Conclusion
+
+Short-horizon precipitation metrics -- specifically the 8-day rolling total and
+30-day anomaly z-score -- provide actionable trading signals for corn futures.
+The two signals complement each other: the z-score identifies extreme regimes,
+while the 8-day total confirms sustained conditions rather than transient
+rain events.

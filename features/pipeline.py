@@ -483,6 +483,12 @@ def update_registry(config: dict) -> None:
         store.write_metadata(metadata_df)
         logger.info("Metadata written: %d rows", len(metadata_df))
 
+        # Sync feature catalog table
+        conn = db.get_connection()
+        db.init_tables(conn)
+        db.populate_feature_catalog(conn, metadata_df)
+        conn.close()
+
     # Clean up empty ticker maps
     ticker_feature_map = {k: v for k, v in ticker_feature_map.items() if v}
 
