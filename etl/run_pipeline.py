@@ -150,12 +150,6 @@ def rebuild():
         if issues:
             db.log_validation(conn, issues)
 
-    # Back-adjust futures prices to remove contract roll gaps
-    from etl.adjust import adjust_futures
-    roll_results = adjust_futures(conn)
-    for ticker, n_rolls in roll_results.items():
-        logger.info("Back-adjust %s: %d rolls corrected", ticker, n_rolls)
-
     # Log summary
     for table in ["futures_daily", "weather_daily"]:
         count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]

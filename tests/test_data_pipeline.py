@@ -51,8 +51,8 @@ class TestDatabase:
     def test_load_prices_ohlc_invariant(self, corn_prices):
         """High >= Low for all rows; Close within [Low, High] for 99%+.
 
-        Back-adjusted continuous futures can have minor OHLC violations
-        from roll adjustments, so we allow up to 1% of rows to violate.
+        Continuous futures can have minor OHLC violations at contract
+        roll boundaries, so we allow up to 1% of rows to violate.
         """
         df = corn_prices.dropna(subset=["High", "Low", "Close"])
         assert (df["High"] >= df["Low"]).all()
@@ -291,7 +291,6 @@ class TestRobustness:
 
     def test_generate_noisy_prices(self, corn_prices):
         """Noisy prices are a Series, all positive, and differ from original."""
-        # Use 2025+ slice where back-adjusted prices are positive
         close = corn_prices.loc["2025-01-01":]["Close"]
         noisy = generate_noisy_prices(close, noise_scale=0.5)
 

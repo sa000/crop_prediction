@@ -16,7 +16,7 @@ crop_prediction/
     db.py                      -- SQLite manager (DB_PATH constant, tables, inserts, queries)
     validate.py                -- validation orchestrator (runs checks, splits clean/rejected)
     pipeline.yaml              -- validation thresholds and check config
-    run_pipeline.py            -- pipeline runner (--rebuild for full backfill)
+    run_pipeline.py            -- pipeline runner (--rebuild for full backfill, raw prices)
     checks/
       generic.py               -- universal checks (nulls, std dev, dates, non-negative)
       futures.py               -- futures-specific checks (high >= low, close in range)
