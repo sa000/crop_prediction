@@ -141,7 +141,7 @@ def _auto_log_run(strategy_name, module_name, ticker_symbol, ticker_name,
 
 
 inject_css()
-sidebar_logo()
+sidebar_logo(PROJECT_ROOT)
 
 # Reserve a slot at the very top of the page for clipboard JS.
 # Writing to this placeholder later injects the script early in the DOM,

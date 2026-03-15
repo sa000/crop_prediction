@@ -8,7 +8,7 @@ from pathlib import Path
 
 import streamlit as st
 
-LOGO_PATH = Path(__file__).resolve().parents[1] / "logo.png"
+_DEFAULT_LOGO = Path(__file__).resolve().parents[1] / "logo.png"
 
 # ---------------------------------------------------------------------------
 # Design System
@@ -264,10 +264,11 @@ def inject_css():
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
-def sidebar_logo():
+def sidebar_logo(project_root: Path | None = None):
     """Render the TREXQUANT logo in the sidebar."""
-    if LOGO_PATH.exists():
-        logo_bytes = LOGO_PATH.read_bytes()
+    logo_path = (project_root / "logo.png") if project_root else _DEFAULT_LOGO
+    if logo_path.exists():
+        logo_bytes = logo_path.read_bytes()
         b64 = base64.b64encode(logo_bytes).decode()
         st.sidebar.markdown(
             f"""

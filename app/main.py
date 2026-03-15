@@ -28,7 +28,7 @@ st.set_page_config(
 )
 
 inject_css()
-sidebar_logo()
+sidebar_logo(PROJECT_ROOT)
 
 # ---------------------------------------------------------------------------
 # Hero

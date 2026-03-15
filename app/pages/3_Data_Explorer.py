@@ -26,7 +26,7 @@ from features import query as fquery
 from features import store
 
 inject_css()
-sidebar_logo()
+sidebar_logo(PROJECT_ROOT)
 
 TICKER_MAP = {
     "Corn": "ZC=F",

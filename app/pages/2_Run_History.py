@@ -26,7 +26,7 @@ from etl.db import (
 )
 
 inject_css()
-sidebar_logo()
+sidebar_logo(PROJECT_ROOT)
 
 # ---------------------------------------------------------------------------
 # Page header
