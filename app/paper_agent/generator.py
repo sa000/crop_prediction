@@ -7,6 +7,7 @@ code that follows the generate_signal interface.
 
 import json
 import logging
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -165,6 +166,7 @@ def generate_strategy_code(spec: dict, feasibility: dict, api_key: str) -> str:
 
     client = OpenAI(api_key=api_key, base_url=BASE_URL)
 
+    t0 = time.monotonic()
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -177,12 +179,14 @@ def generate_strategy_code(spec: dict, feasibility: dict, api_key: str) -> str:
     except APIError:
         logger.exception("DeepSeek API error during code generation")
         return "ERROR: Failed to reach the AI service. Please try again."
+    duration = time.monotonic() - t0
 
     try:
         from app.ai_usage import log_usage
         usage = response.usage
         log_usage("deepseek", MODEL, "paper_generator",
-                  usage.prompt_tokens, usage.completion_tokens)
+                  usage.prompt_tokens, usage.completion_tokens,
+                  duration_s=round(duration, 2))
     except Exception:
         pass
 
@@ -213,17 +217,11 @@ def save_strategy(code: str, name: str) -> Path:
 
     Returns:
         Path to the saved file.
-
-    Raises:
-        FileExistsError: If a strategy with this name already exists.
     """
     slug = name.lower().replace(" ", "_").replace("-", "_")
     # Remove non-alphanumeric chars except underscores
     slug = "".join(c for c in slug if c.isalnum() or c == "_")
     path = STRATEGIES_DIR / f"{slug}.py"
-
-    if path.exists():
-        raise FileExistsError(f"Strategy file already exists: {path.name}")
 
     path.write_text(code)
     logger.info("Saved strategy to %s", path)

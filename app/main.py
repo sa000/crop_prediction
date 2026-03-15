@@ -1,4 +1,4 @@
-"""The Cortex -- Streamlit entry point.
+"""Cortex -- Streamlit entry point.
 
 Configures page layout, applies dark theme styling, and renders the
 landing page with TREXQUANT branding plus clickable quick-nav cards."""
@@ -21,8 +21,8 @@ from app.style import (
 )
 
 st.set_page_config(
-    page_title="The Cortex | TREXQUANT",
-    page_icon=str(PROJECT_ROOT / "logo.png"),
+    page_title="Cortex | TREXQUANT",
+    page_icon=str(PROJECT_ROOT / "brain.png"),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -50,7 +50,7 @@ st.markdown(
         {_logo_html}
         <h1 class="hero-gradient" style="font-weight: 700; font-size: 2.2rem;
                     margin: 0;">
-            The Cortex
+            Cortex
         </h1>
         <p style="color: {TEXT_SECONDARY}; font-size: 1rem; margin-bottom: 2rem;">
             Analyze strategies, run backtests, and extract alpha from research papers
@@ -65,14 +65,14 @@ st.markdown(
 # ---------------------------------------------------------------------------
 NAV_SECTIONS = {
     "Strategies": [
-        ("Backtester",
+        ("Strategy Backtester",
          "Run backtests on crop futures strategies. View equity curves, "
          "risk metrics, trade signals, and Monte Carlo stress tests.",
-         "pages/1_Backtester.py"),
-        ("Run History",
+         "pages/1_Strategy_Backtester.py"),
+        ("Strategy Leaderboard",
          "Browse, filter, and compare all backtest runs across strategies "
          "and tickers. Star top performers and drill into saved results.",
-         "pages/2_Run_History.py"),
+         "pages/2_Strategy_Leaderboard.py"),
     ],
     "Research": [
         ("Data Explorer",

@@ -11,6 +11,7 @@ between paper descriptions and our internal data schema.
 
 import json
 import logging
+import time
 from pathlib import Path
 
 import yaml
@@ -128,7 +129,11 @@ e.g. "corn_belt_precip_anomaly_30d").
 - For "derivable": identify which raw table and column to use, and write a \
 short Python code snippet showing how to derive it. Use \
 etl.db.load_raw_data(table, entity_col, entity_val) to load raw data. \
-For Corn Belt aggregation, load each state and average them.
+For Corn Belt aggregation, load each state and average them. \
+CRITICAL: The derivation code MUST apply .shift(1) at the end for point-in-time \
+correctness. On day T, derived features must reflect data through T-1 only, \
+because trading decisions are made in the morning before day T's data is observed. \
+A rolling(8).sum() on day T includes day T's data, so .shift(1) is required.
 - For "not_possible": explain what raw data is missing and why we cannot \
 compute this feature.
 - Be conservative: only mark "in_store" if the computation truly matches. \
@@ -173,6 +178,7 @@ def map_features(spec: dict, api_key: str) -> dict:
 
     client = OpenAI(api_key=api_key, base_url=BASE_URL)
 
+    t0 = time.monotonic()
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -185,12 +191,14 @@ def map_features(spec: dict, api_key: str) -> dict:
     except APIError:
         logger.exception("DeepSeek API error during mapping")
         return {"error": "Failed to reach the AI service. Please try again."}
+    duration = time.monotonic() - t0
 
     try:
         from app.ai_usage import log_usage
         usage = response.usage
         log_usage("deepseek", MODEL, "paper_mapper",
-                  usage.prompt_tokens, usage.completion_tokens)
+                  usage.prompt_tokens, usage.completion_tokens,
+                  duration_s=round(duration, 2))
     except Exception:
         pass
 

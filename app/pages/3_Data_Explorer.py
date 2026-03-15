@@ -16,6 +16,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+st.set_page_config(
+    page_title="Data Explorer | Cortex",
+    page_icon=str(PROJECT_ROOT / "brain.png"),
+    layout="wide",
+)
+
 from app import catalog_agent, charts
 from app.style import (
     inject_css, sidebar_logo,

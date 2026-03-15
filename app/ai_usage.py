@@ -30,6 +30,7 @@ def log_usage(
     feature: str,
     input_tokens: int,
     output_tokens: int,
+    duration_s: float | None = None,
 ) -> None:
     """Write one usage record to the database.
 
@@ -39,6 +40,7 @@ def log_usage(
         feature: Which app feature triggered the call (e.g. 'trade_postmortem').
         input_tokens: Number of input/prompt tokens.
         output_tokens: Number of output/completion tokens.
+        duration_s: Wall-clock seconds the API call took (optional).
     """
     cost = _estimate_cost(model, input_tokens, output_tokens)
     now = datetime.now(timezone.utc).isoformat()
@@ -48,14 +50,17 @@ def log_usage(
         init_app_tables(conn)
         conn.execute(
             "INSERT INTO ai_usage (timestamp, provider, model, feature, "
-            "input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (now, provider, model, feature, input_tokens, output_tokens, cost),
+            "input_tokens, output_tokens, cost_usd, duration_s) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (now, provider, model, feature, input_tokens, output_tokens,
+             cost, duration_s),
         )
         conn.commit()
         conn.close()
         logger.debug(
-            "Logged AI usage: %s/%s %d in + %d out = $%.6f",
+            "Logged AI usage: %s/%s %d in + %d out = $%.6f (%.1fs)",
             provider, model, input_tokens, output_tokens, cost,
+            duration_s or 0,
         )
     except Exception:
         logger.exception("Failed to log AI usage")
@@ -172,13 +177,15 @@ def get_function_breakdown() -> list[dict]:
             "SELECT feature, provider, model, "
             "COUNT(*) as calls, "
             "SUM(input_tokens) as inp, SUM(output_tokens) as out, "
-            "SUM(cost_usd) as cost "
+            "SUM(cost_usd) as cost, "
+            "AVG(duration_s) as avg_dur "
             "FROM ai_usage GROUP BY feature, provider, model "
             "ORDER BY cost DESC"
         )
         rows = [
             {"feature": r[0], "provider": r[1], "model": r[2], "calls": r[3],
-             "input_tokens": r[4], "output_tokens": r[5], "cost": r[6]}
+             "input_tokens": r[4], "output_tokens": r[5], "cost": r[6],
+             "avg_duration_s": r[7]}
             for r in cur.fetchall()
         ]
         conn.close()
@@ -201,13 +208,13 @@ def get_all_calls() -> list[dict]:
         cur = conn.cursor()
         cur.execute(
             "SELECT id, timestamp, provider, model, feature, "
-            "input_tokens, output_tokens, cost_usd "
+            "input_tokens, output_tokens, cost_usd, duration_s "
             "FROM ai_usage ORDER BY id DESC"
         )
         rows = [
             {"id": r[0], "timestamp": r[1], "provider": r[2], "model": r[3],
              "feature": r[4], "input_tokens": r[5], "output_tokens": r[6],
-             "cost": r[7]}
+             "cost": r[7], "duration_s": r[8]}
             for r in cur.fetchall()
         ]
         conn.close()
@@ -215,3 +222,26 @@ def get_all_calls() -> list[dict]:
     except Exception:
         logger.exception("Failed to query all calls")
         return []
+
+
+def get_avg_durations() -> dict[str, float]:
+    """Return average duration in seconds for each feature that has duration data.
+
+    Returns:
+        Dict mapping feature name to average duration_s.
+    """
+    try:
+        conn = get_app_connection()
+        init_app_tables(conn)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT feature, AVG(duration_s) "
+            "FROM ai_usage WHERE duration_s IS NOT NULL "
+            "GROUP BY feature"
+        )
+        result = {r[0]: r[1] for r in cur.fetchall()}
+        conn.close()
+        return result
+    except Exception:
+        logger.exception("Failed to query avg durations")
+        return {}

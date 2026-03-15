@@ -61,13 +61,13 @@ crop_prediction/
     trade_analyst.py           -- AI trade post-mortem agent (Claude Sonnet, web search)
     charts.py                  -- Plotly chart builders (pure functions, no Streamlit)
     paper_agent/               -- paper-to-strategy pipeline (extract, map, generate)
-      extractor.py             -- PDF/text → strategy spec (Claude Sonnet)
-      mapper.py                -- spec features → data catalog feasibility (Claude Sonnet)
-      generator.py             -- spec + map → Python strategy code (Claude Sonnet)
+      extractor.py             -- PDF/text → strategy spec (DeepSeek)
+      mapper.py                -- spec features → data catalog feasibility (DeepSeek)
+      generator.py             -- spec + map → Python strategy code (DeepSeek)
       demos/                   -- built-in demo papers for POC
     pages/
-      1_Backtester.py          -- backtest results, risk metrics, charts
-      2_Run_History.py          -- persistent backtest run history and comparison
+      1_Strategy_Backtester.py  -- backtest results, risk metrics, charts
+      2_Strategy_Leaderboard.py -- persistent backtest run leaderboard and comparison
       3_Data_Explorer.py       -- browse price, weather, and feature data (+ AI catalog)
       4_Paper_Upload.py        -- paper-to-strategy pipeline UI (5-step workflow)
       5_AI_Usage.py            -- AI API cost/token tracking dashboard

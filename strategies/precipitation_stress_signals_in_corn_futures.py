@@ -1,21 +1,20 @@
 """Precipitation Stress Signals in Corn Futures.
 
-Strategy based on Mitchell, Vasquez & Chen (2024). Uses extreme deviations in
-short-horizon precipitation metrics (30-day anomaly z-score and 8-day rolling
-total) to forecast moves in corn futures.
+Strategy based on "Precipitation Stress Signals in Corn Futures" paper.
+Extreme deviations in precipitation, measured by a 30-day anomaly z-score
+and confirmed by an 8-day rolling precipitation total, forecast significant
+moves in corn futures. The strategy goes long during drought or flood stress
+conditions and short during normal precipitation periods.
 
-Long positions during confirmed drought or flood stress, short during normal
-precipitation. The 8-day rolling precipitation total is derived inline from
-raw weather data in the warehouse.
-
-Point-in-time: all weather features are lagged by 1 day because weather data
-for day T is not available until after day T ends. On the morning of day T,
-the most recent complete weather observation is for day T-1.
+This implementation derives the 8-day rolling precipitation total inline from
+raw warehouse data, applying a 1-day lag for point-in-time correctness.
 """
 
 import pandas as pd
+import numpy as np
 from etl.db import load_raw_data
 
+# Signal thresholds
 DROUGHT_Z_THRESHOLD = -1.5
 FLOOD_Z_THRESHOLD = 2.0
 NORMAL_Z_LOWER = -0.3
@@ -29,68 +28,83 @@ FEATURES = {
 }
 
 SUMMARY = (
-    "Goes long when Corn Belt precipitation shows extreme dry (drought) or wet "
-    "(flood) stress confirmed by 8-day totals, short during normal precipitation."
+    "Goes long when Corn Belt precipitation shows extreme drought or flood "
+    "conditions confirmed by sustained dry/wet patterns, and short during "
+    "normal precipitation periods when there is no supply threat."
 )
 
 
-def _derive_corn_belt_precip_8d():
-    """Derive 8-day rolling precipitation total for Corn Belt.
-
-    Loads raw daily precipitation for Iowa, Illinois, and Nebraska,
-    averages across states, then computes the 8-day rolling sum.
-
+def _compute_8d_precipitation():
+    """Compute 8-day rolling precipitation total for Corn Belt.
+    
+    Loads raw precipitation data for Iowa, Illinois, and Nebraska,
+    computes Corn Belt aggregate by averaging across states, then
+    calculates 8-day rolling sum.
+    
     Returns:
-        Series indexed by date with the 8-day rolling precipitation total.
+        Series with DatetimeIndex and 'precip_8d' values.
     """
-    frames = []
-    for state in ["Iowa", "Illinois", "Nebraska"]:
-        raw = load_raw_data("weather_daily", "state", state)
-        raw = raw.set_index(pd.to_datetime(raw["date"]))
-        frames.append(raw["precip_in"])
-
-    corn_belt_precip = pd.concat(frames, axis=1).mean(axis=1)
-    return corn_belt_precip.rolling(window=8, min_periods=8).sum()
+    states = ["Iowa", "Illinois", "Nebraska"]
+    state_series = []
+    
+    for state in states:
+        # Load raw precipitation data for each state
+        df_state = load_raw_data("weather_daily", "state", state)
+        df_state = df_state[["date", "precip_in"]].copy()
+        df_state.set_index("date", inplace=True)
+        state_series.append(df_state["precip_in"].rename(state))
+    
+    # Combine states into DataFrame
+    precip_df = pd.concat(state_series, axis=1)
+    
+    # Compute Corn Belt aggregate (mean across states)
+    corn_belt_precip = precip_df.mean(axis=1).rename("corn_belt_precip_in")
+    
+    # Calculate 8-day rolling sum with min_periods=8 (default)
+    # Apply 1-day lag for point-in-time correctness
+    # On date T, we only have data through T-1
+    precip_8d = corn_belt_precip.rolling(8).sum().shift(1).rename("precip_8d")
+    
+    return precip_8d
 
 
 def generate_signal(df):
-    """Generate long/short/flat signal from precipitation metrics.
-
-    All weather features are shifted by 1 day to be point-in-time: on day T,
-    we only use weather data through day T-1.
-
+    """Generate long/short/flat signal from precipitation features.
+    
     Args:
-        df: DataFrame indexed by date with 'corn_belt_precip_anomaly_30d'
-            and 'Close' columns.
-
+        df: DataFrame with DatetimeIndex, 'Close' column, and
+            'corn_belt_precip_anomaly_30d' column from feature store.
+    
     Returns:
         DataFrame with added 'signal' column (+1, -1, or 0).
     """
     df = df.copy()
-
-    # Derive 8-day precipitation total and lag by 1 day for point-in-time
-    precip_8d = _derive_corn_belt_precip_8d()
-    df["corn_belt_precip_8d"] = precip_8d.shift(1)
-
-    # Store feature is already point-in-time (shifted by the feature pipeline)
+    
+    # Derive 8-day precipitation total inline
+    precip_8d = _compute_8d_precipitation()
+    
+    # Join derived feature (pandas aligns on DatetimeIndex)
+    df["precip_8d"] = precip_8d
+    
+    # Get feature store columns
     anomaly = df["corn_belt_precip_anomaly_30d"]
-    p8d = df["corn_belt_precip_8d"]
-
+    
+    # Initialize signal column
     df["signal"] = 0
-
-    # Drought stress: z-score below threshold AND sustained dry conditions
-    drought = (anomaly < DROUGHT_Z_THRESHOLD) & (p8d < DRY_CONFIRMATION_INCHES)
-    df.loc[drought, "signal"] = 1
-
-    # Flood stress: z-score above threshold AND sustained wet conditions
-    flood = (anomaly > FLOOD_Z_THRESHOLD) & (p8d > WET_CONFIRMATION_INCHES)
-    df.loc[flood, "signal"] = 1
-
-    # Normal precipitation: no supply threat, bearish
-    normal = (anomaly > NORMAL_Z_LOWER) & (anomaly < NORMAL_Z_UPPER)
-    df.loc[normal, "signal"] = -1
-
-    # NaN safety
-    df.loc[anomaly.isna() | p8d.isna(), "signal"] = 0
-
+    
+    # Long drought: extreme negative z-score AND sustained dry conditions
+    drought_mask = (anomaly < DROUGHT_Z_THRESHOLD) & (df["precip_8d"] < DRY_CONFIRMATION_INCHES)
+    df.loc[drought_mask, "signal"] = 1
+    
+    # Long flood: extreme positive z-score AND sustained wet conditions
+    flood_mask = (anomaly > FLOOD_Z_THRESHOLD) & (df["precip_8d"] > WET_CONFIRMATION_INCHES)
+    df.loc[flood_mask, "signal"] = 1
+    
+    # Short normal: z-score within normal range
+    normal_mask = (anomaly > NORMAL_Z_LOWER) & (anomaly < NORMAL_Z_UPPER)
+    df.loc[normal_mask, "signal"] = -1
+    
+    # Handle NaN values
+    df.loc[anomaly.isna() | df["precip_8d"].isna(), "signal"] = 0
+    
     return df

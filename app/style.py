@@ -1,6 +1,6 @@
 """Custom CSS styling for the Streamlit app.
 
-Provides a polished dark theme with indigo accent (#6366f1),
+Provides a polished dark theme with logo-blue accent (#4A9BD9),
 glass-morphism cards, Inter font, and smooth transitions."""
 
 import base64
@@ -13,24 +13,24 @@ _DEFAULT_LOGO = Path(__file__).resolve().parents[1] / "logo.png"
 # ---------------------------------------------------------------------------
 # Design System
 # ---------------------------------------------------------------------------
-ACCENT = "#6366f1"
-ACCENT_HOVER = "#4f46e5"
-ACCENT_DIM = "rgba(99, 102, 241, 0.12)"
+ACCENT = "#4A9BD9"
+ACCENT_HOVER = "#3A87C2"
+ACCENT_DIM = "rgba(74, 155, 217, 0.12)"
 BG_DARK = "#0b0d13"
 BG_CARD = "rgba(255, 255, 255, 0.04)"
 BG_CARD_SOLID = "#13141f"
 BG_CARD_HOVER = "rgba(255, 255, 255, 0.07)"
-TEXT_PRIMARY = "#f1f5f9"
-TEXT_SECONDARY = "#94a3b8"
-TEXT_DIM = "#64748b"
+TEXT_PRIMARY = "#F8FAFC"
+TEXT_SECONDARY = "#E2E8F0"
+TEXT_DIM = "#CBD5E1"
 TEXT_FAINT = "#475569"
 BORDER = "rgba(148, 163, 184, 0.08)"
 BORDER_SUBTLE = "rgba(148, 163, 184, 0.05)"
 GREEN = "#22c55e"
 RED = "#ef4444"
 AMBER = "#f59e0b"
-LINK = "#818cf8"
-BADGE = "#a5b4fc"
+LINK = "#6BB3E0"
+BADGE = "#8CC8EB"
 
 # Keep old name as alias so existing imports don't break
 TEXT_MUTED = TEXT_SECONDARY
@@ -52,7 +52,7 @@ CHART_COLORS = {
     "high_vol": AMBER,
     "low_vol": ACCENT,
     "mean_line": GREEN,
-    "seasonality_fill": "rgba(99, 102, 241, 0.1)",
+    "seasonality_fill": "rgba(74, 155, 217, 0.1)",
 }
 
 # ---------------------------------------------------------------------------
@@ -83,8 +83,24 @@ CUSTOM_CSS = f"""
     }}
     section[data-testid="stSidebar"] .stSelectbox label,
     section[data-testid="stSidebar"] .stMarkdown p {{
-        color: {TEXT_SECONDARY};
+        color: {TEXT_PRIMARY};
         font-size: 0.85rem;
+    }}
+    /* Sidebar nav page links */
+    [data-testid="stSidebarNav"] span {{
+        color: {TEXT_PRIMARY} !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
+    }}
+    /* Sidebar widget labels (selectbox, radio, checkbox, etc.) */
+    section[data-testid="stSidebar"] label {{
+        color: {TEXT_PRIMARY} !important;
+    }}
+    section[data-testid="stSidebar"] .stRadio label {{
+        color: {TEXT_PRIMARY} !important;
+    }}
+    section[data-testid="stSidebar"] .stCheckbox label {{
+        color: {TEXT_PRIMARY} !important;
     }}
     /* Prevent sidebar selectbox dropdown from being clipped */
     section[data-testid="stSidebar"] [data-baseweb="popover"] {{
@@ -111,7 +127,7 @@ CUSTOM_CSS = f"""
     div[data-testid="stMetric"]:hover {{
         background: {BG_CARD_HOVER};
         border-color: rgba(148, 163, 184, 0.14);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.10);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(74, 155, 217, 0.10);
     }}
     div[data-testid="stMetric"] label {{
         color: {TEXT_SECONDARY} !important;
@@ -162,7 +178,7 @@ CUSTOM_CSS = f"""
     .stButton > button[kind="primary"]:hover {{
         background-color: {ACCENT_HOVER};
         transform: translateY(-1px);
-        box-shadow: 0 0 16px rgba(99, 102, 241, 0.45);
+        box-shadow: 0 0 16px rgba(74, 155, 217, 0.45);
     }}
 
     /* --- Tabs --- */
@@ -214,13 +230,14 @@ CUSTOM_CSS = f"""
     }}
     [data-testid="stSidebarNav"] li:first-child span::before {{
         content: "Home";
-        font-size: 0.875rem !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
         line-height: 1.6 !important;
     }}
 
     /* --- Hero gradient text --- */
     .hero-gradient {{
-        background: linear-gradient(135deg, {ACCENT}, #8b5cf6);
+        background: linear-gradient(135deg, {ACCENT}, #6BB3E0);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -231,7 +248,7 @@ CUSTOM_CSS = f"""
     .stSelectbox > div > div:focus-visible,
     .stTextInput > div > div > input:focus-visible,
     .stTabs [data-baseweb="tab"]:focus-visible {{
-        outline: 2px solid rgba(99, 102, 241, 0.6);
+        outline: 2px solid rgba(74, 155, 217, 0.6);
         outline-offset: 2px;
     }}
 

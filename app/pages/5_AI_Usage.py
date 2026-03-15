@@ -13,6 +13,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+st.set_page_config(
+    page_title="AI Usage | Cortex",
+    page_icon=str(PROJECT_ROOT / "brain.png"),
+    layout="wide",
+)
+
 from app.ai_usage import (
     get_usage_summary, get_daily_breakdown,
     get_function_breakdown, get_all_calls,
@@ -183,6 +189,7 @@ with tab_func:
                 "output_tokens": st.column_config.NumberColumn("Output Tokens", format="%d"),
                 "total_tokens": st.column_config.NumberColumn("Total Tokens", format="%d"),
                 "cost": st.column_config.NumberColumn("Cost ($)", format="%.6f"),
+                "avg_duration_s": st.column_config.NumberColumn("Avg Duration (s)", format="%.1f"),
             },
             width="stretch",
             hide_index=True,
@@ -222,9 +229,11 @@ with tab_log:
                 "output_tokens": st.column_config.NumberColumn("Output Tokens", format="%d"),
                 "total_tokens": st.column_config.NumberColumn("Total Tokens", format="%d"),
                 "cost": st.column_config.NumberColumn("Cost ($)", format="$%.6f"),
+                "duration_s": st.column_config.NumberColumn("Duration (s)", format="%.1f"),
             },
             column_order=["id", "timestamp", "provider", "model", "feature",
-                          "input_tokens", "output_tokens", "total_tokens", "cost"],
+                          "input_tokens", "output_tokens", "total_tokens",
+                          "cost", "duration_s"],
             width="stretch",
             hide_index=True,
         )

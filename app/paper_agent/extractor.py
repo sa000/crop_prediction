@@ -7,6 +7,7 @@ the paper describes them -- without mapping to our internal categories.
 
 import json
 import logging
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,8 @@ BASE_URL = "https://api.deepseek.com"
 DEMOS_DIR = Path(__file__).resolve().parent / "demos"
 
 DEMO_PAPERS = {
-    "Demo 1: Precipitation Stress Signals (derivable)": "demo_1_derivable.txt",
-    "Demo 2: Soil Moisture & NDVI (not possible)": "demo_2_not_possible.txt",
+    "Demo 1: Precipitation Stress Signals (feasible)": "demo_1_derivable.txt",
+    "Demo 2: Soil Moisture & NDVI (not feasible)": "demo_2_not_possible.txt",
 }
 
 SYSTEM_PROMPT = """\
@@ -97,6 +98,7 @@ def extract_strategy(paper_text: str, api_key: str) -> dict:
 
     client = OpenAI(api_key=api_key, base_url=BASE_URL)
 
+    t0 = time.monotonic()
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -109,12 +111,14 @@ def extract_strategy(paper_text: str, api_key: str) -> dict:
     except APIError:
         logger.exception("DeepSeek API error during extraction")
         return {"error": "Failed to reach the AI service. Please try again."}
+    duration = time.monotonic() - t0
 
     try:
         from app.ai_usage import log_usage
         usage = response.usage
         log_usage("deepseek", MODEL, "paper_extractor",
-                  usage.prompt_tokens, usage.completion_tokens)
+                  usage.prompt_tokens, usage.completion_tokens,
+                  duration_s=round(duration, 2))
     except Exception:
         pass
 

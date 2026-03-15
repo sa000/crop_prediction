@@ -183,7 +183,8 @@ CREATE TABLE IF NOT EXISTS ai_usage (
     feature       TEXT NOT NULL,
     input_tokens  INTEGER NOT NULL DEFAULT 0,
     output_tokens INTEGER NOT NULL DEFAULT 0,
-    cost_usd      REAL NOT NULL DEFAULT 0.0
+    cost_usd      REAL NOT NULL DEFAULT 0.0,
+    duration_s    REAL
 );
 """
 
@@ -248,6 +249,13 @@ def init_app_tables(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_SHARED_ANALYSES)
     conn.execute(CREATE_BACKTEST_RUNS)
     conn.execute(CREATE_AI_USAGE)
+
+    # Migrations for existing databases
+    cur = conn.execute("PRAGMA table_info(ai_usage)")
+    columns = {row[1] for row in cur.fetchall()}
+    if "duration_s" not in columns:
+        conn.execute("ALTER TABLE ai_usage ADD COLUMN duration_s REAL")
+
     conn.commit()
     logger.debug("App tables initialized")
 
