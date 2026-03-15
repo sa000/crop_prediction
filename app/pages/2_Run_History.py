@@ -1,7 +1,7 @@
-"""Strategy Leaderboard -- persistent history of all backtest runs.
+"""Run History -- persistent history of all backtest runs.
 
 Browse, filter, sort, star, and drill into every backtest run across all
-strategies and tickers. Click View to rehydrate the full Strategy Dashboard
+strategies and tickers. Click View to rehydrate the full Backtester
 with saved results."""
 
 import sys
@@ -28,15 +28,12 @@ from etl.db import (
 inject_css()
 sidebar_logo()
 
-from app.ai_usage import render_usage_sidebar
-render_usage_sidebar()
-
 # ---------------------------------------------------------------------------
 # Page header
 # ---------------------------------------------------------------------------
 st.markdown(
     f'<h1 style="font-weight: 600; font-size: 1.8rem; color: {TEXT_PRIMARY};">'
-    f'Strategy Leaderboard</h1>',
+    f'Run History</h1>',
     unsafe_allow_html=True,
 )
 
@@ -112,7 +109,7 @@ if runs:
     s3.metric("Best P&L", _fmt_dollar(best_pnl))
     s4.metric("Avg Win Rate", f"{avg_wr:.1%}")
 else:
-    st.info("No backtest runs yet. Run a backtest from the Strategy Dashboard to get started.")
+    st.info("No backtest runs yet. Run a backtest from the Backtester to get started.")
     conn.close()
     st.stop()
 
@@ -203,7 +200,7 @@ for rank, run in enumerate(runs, 1):
     with col_view:
         if st.button("View", key=f"view_{run_id}", width="stretch"):
             st.session_state["leaderboard_run_id"] = run_id
-            st.switch_page("pages/1_Strategy_Dashboard.py")
+            st.switch_page("pages/1_Backtester.py")
 
     with col_star:
         star_label = "Unstar" if is_starred else "Star"

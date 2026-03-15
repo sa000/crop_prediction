@@ -86,6 +86,11 @@ CUSTOM_CSS = f"""
         color: {TEXT_SECONDARY};
         font-size: 0.85rem;
     }}
+    /* Prevent sidebar selectbox dropdown from being clipped */
+    section[data-testid="stSidebar"] [data-baseweb="popover"] {{
+        z-index: 999 !important;
+    }}
+
     /* Hide sidebar collapse-button tooltip / keyboard-shortcut hint */
     section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] span,
     [data-testid="collapsedControl"] span {{

@@ -1,4 +1,4 @@
-"""Strategy Dashboard -- run backtests and view performance metrics.
+"""Backtester -- run backtests and view performance metrics.
 
 Loads futures from SQLite, weather features from Parquet, runs the selected
 strategy's signal generator and backtest engine, then displays summary stats,
@@ -481,7 +481,7 @@ if leaderboard_run_id:
         f' &mdash; {created} &mdash; by {row["run_by"]}</span></div>',
         unsafe_allow_html=True,
     )
-    st.page_link("pages/4_Strategy_Leaderboard.py", label="Back to Leaderboard")
+    st.page_link("pages/2_Run_History.py", label="Back to Run History")
 
     render_results(result_df, trade_log, stats, rs, rw, mr, dd)
     st.stop()
@@ -526,7 +526,7 @@ if share_id:
 
 st.markdown(
     f'<h1 style="font-weight: 600; font-size: 1.8rem; color: {TEXT_PRIMARY};">'
-    f'Strategy Dashboard</h1>',
+    f'Backtester</h1>',
     unsafe_allow_html=True,
 )
 

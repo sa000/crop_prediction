@@ -557,7 +557,7 @@ with tab4:
         st.markdown(
             _card(
                 f'<div style="color: {GREEN}; font-weight: 600; font-size: 1rem; '
-                f'margin-bottom: 0.75rem;">Strategy saved to the Strategy Dashboard.</div>'
+                f'margin-bottom: 0.75rem;">Strategy saved to the Backtester.</div>'
                 f'<div style="color: {TEXT_SECONDARY}; font-size: 0.88rem; '
                 f'margin-bottom: 0.75rem;">'
                 f'Select "{spec.get("title", "")}" from the sidebar to backtest it.</div>'
@@ -575,7 +575,7 @@ with tab4:
         )
 
         st.page_link(
-            "pages/1_Strategy_Dashboard.py",
-            label="Go to Strategy Dashboard",
+            "pages/1_Backtester.py",
+            label="Go to Backtester",
             width="content",
         )
