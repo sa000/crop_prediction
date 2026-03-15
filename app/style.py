@@ -8,7 +8,7 @@ from pathlib import Path
 
 import streamlit as st
 
-LOGO_PATH = Path(__file__).resolve().parents[1] / "trexquant_logo.png"
+LOGO_PATH = Path(__file__).resolve().parents[1] / "logo.png"
 
 # ---------------------------------------------------------------------------
 # Design System
@@ -220,13 +220,8 @@ def sidebar_logo():
         st.sidebar.markdown(
             f"""
             <div style="text-align: center; padding: 0.5rem 0 1rem 0;">
-                <img src="data:image/png;base64,{b64}" width="120"
-                     style="border-radius: 10px;" />
-                <div style="font-size: 1.1rem; font-weight: 700;
-                            margin-top: 8px; letter-spacing: 0.04em;">
-                    <span style="color: {TEXT_PRIMARY};">TREX</span><span
-                          style="color: #4A9EF5;">QUANT</span>
-                </div>
+                <img src="data:image/png;base64,{b64}" width="200"
+                     style="border-radius: 6px;" />
             </div>
             """,
             unsafe_allow_html=True,

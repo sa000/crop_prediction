@@ -20,7 +20,7 @@ from app.style import (
 
 st.set_page_config(
     page_title="TREXQUANT",
-    page_icon=str(PROJECT_ROOT / "trexquant_logo.png"),
+    page_icon=str(PROJECT_ROOT / "logo.png"),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -49,7 +49,7 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # Quick-nav cards
 # ---------------------------------------------------------------------------
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown(
@@ -91,6 +91,29 @@ with col2:
             <p style="color: {TEXT_SECONDARY}; font-size: 0.9rem; line-height: 1.5;">
                 Browse engineered features with stats, seasonality, and
                 distributions. Explore raw data sources and quality metrics.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with col3:
+    st.markdown(
+        f"""
+        <div style="background: {BG_CARD}; backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    border: 1px solid {BORDER}; border-radius: 12px;
+                    padding: 1.5rem; height: 160px;
+                    transition: background 0.2s ease, border-color 0.2s ease;"
+             onmouseover="this.style.background='{BG_CARD_HOVER}'; this.style.borderColor='rgba(148,163,184,0.14)'"
+             onmouseout="this.style.background='{BG_CARD}'; this.style.borderColor='{BORDER}'">
+            <h3 style="color: {ACCENT}; font-size: 1.1rem; margin: 0 0 0.5rem 0;
+                        border: none; padding: 0;">
+                Paper Upload
+            </h3>
+            <p style="color: {TEXT_SECONDARY}; font-size: 0.9rem; line-height: 1.5;">
+                Extract trading strategies from research papers. Map features
+                to available data and generate runnable strategy modules.
             </p>
         </div>
         """,
